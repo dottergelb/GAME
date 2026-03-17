@@ -1,0 +1,13 @@
+aiogram
+opencv-python
+numpy
+pillow
+easyocr
+ultralytics
+python-dotenv
+openai
+fastapi
+uvicorn
+sqlalchemy
+aiosqlite
+pydantic-settings
