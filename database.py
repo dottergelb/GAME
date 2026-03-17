@@ -1,15 +1,207 @@
-import aiosqlite
+from __future__ import annotations
+
+import os
+import re
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, List, Tuple
 
-DB_PATH = "users.db"
+from dotenv import load_dotenv
+import aiosqlite
+try:
+    import asyncpg
+except ModuleNotFoundError:
+    asyncpg = None
+
+load_dotenv(Path(__file__).with_name(".env"))
+
+DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
+DB_PATH = os.getenv("SQLITE_PATH", "users.db")
+USE_POSTGRES = DATABASE_URL.startswith("postgres://") or DATABASE_URL.startswith("postgresql://")
+_POOL: asyncpg.Pool | None = None
+
+
+def _normalize_db_url(url: str) -> str:
+    # asyncpg accepts both postgres:// and postgresql://, normalize for consistency.
+    return url.replace("postgres://", "postgresql://", 1)
+
+
+def _to_pg_placeholders(sql: str) -> str:
+    idx = 0
+
+    def repl(_: re.Match[str]) -> str:
+        nonlocal idx
+        idx += 1
+        return f"${idx}"
+
+    return re.sub(r"\?", repl, sql)
+
+
+async def _get_pool() -> asyncpg.Pool:
+    global _POOL
+    if _POOL is None:
+        if not USE_POSTGRES:
+            raise RuntimeError("DATABASE_URL is not configured for PostgreSQL mode")
+        if asyncpg is None:
+            raise RuntimeError("PostgreSQL mode requires asyncpg. Install dependencies from requirements.txt")
+        _POOL = await asyncpg.create_pool(_normalize_db_url(DATABASE_URL), min_size=1, max_size=10)
+    return _POOL
+
+
+class _PGCursor:
+    def __init__(self, rows: list[asyncpg.Record] | None = None, lastrowid: int | None = None):
+        self._rows = rows or []
+        self.lastrowid = lastrowid
+
+    async def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+    async def fetchall(self):
+        return self._rows
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+class _PGConnection:
+    def __init__(self, conn: asyncpg.Connection):
+        self.conn = conn
+
+    async def execute(self, sql: str, params=()):
+        sql_clean = sql.strip()
+        if sql_clean.upper().startswith("PRAGMA"):
+            return _PGCursor()
+
+        sql_pg = _to_pg_placeholders(sql)
+        if sql_clean.upper().startswith("SELECT"):
+            rows = await self.conn.fetch(sql_pg, *params)
+            return _PGCursor(rows=rows)
+
+        await self.conn.execute(sql_pg, *params)
+        return _PGCursor()
+
+    async def executescript(self, script: str):
+        statements = [s.strip() for s in script.split(";") if s.strip()]
+        for stmt in statements:
+            await self.conn.execute(stmt)
+
+    async def commit(self):
+        return None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+class _PGConnectCtx:
+    def __init__(self):
+        self._pool: asyncpg.Pool | None = None
+        self._conn: asyncpg.Connection | None = None
+        self._db: _PGConnection | None = None
+
+    async def __aenter__(self):
+        self._pool = await _get_pool()
+        self._conn = await self._pool.acquire()
+        self._db = _PGConnection(self._conn)
+        return self._db
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if self._pool is not None and self._conn is not None:
+            await self._pool.release(self._conn)
+        return False
+
+
+def _db_connect():
+    if USE_POSTGRES:
+        return _PGConnectCtx()
+    return aiosqlite.connect(DB_PATH)
 
 
 # =========================
 # INIT DB
 # =========================
 async def init_db():
-    async with aiosqlite.connect(DB_PATH) as db:
+    if USE_POSTGRES:
+        async with _db_connect() as db:
+            await db.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT UNIQUE,
+                    name TEXT NOT NULL UNIQUE
+                );
+
+                CREATE TABLE IF NOT EXISTS player_stats (
+                    user_id BIGINT PRIMARY KEY,
+                    total_points INTEGER DEFAULT 0,
+                    matches_played INTEGER DEFAULT 0,
+                    wins INTEGER DEFAULT 0,
+                    FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS verification_requests (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL,
+                    tg_username TEXT,
+                    status TEXT NOT NULL DEFAULT 'open',
+                    game_name TEXT NOT NULL,
+                    game_uid TEXT NOT NULL,
+                    code_word TEXT NOT NULL,
+                    profile_file_id TEXT NOT NULL,
+                    chat_file_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    decided_at TEXT,
+                    operator_id BIGINT,
+                    reject_reason TEXT,
+                    FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS verified_accounts (
+                    user_id BIGINT PRIMARY KEY,
+                    game_name TEXT NOT NULL,
+                    game_uid TEXT NOT NULL UNIQUE,
+                    verified_at TEXT NOT NULL,
+                    operator_id BIGINT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS name_change_requests (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL,
+                    old_name TEXT,
+                    new_name TEXT NOT NULL,
+                    screenshot_file_id TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'open',
+                    created_at TEXT NOT NULL,
+                    decided_at TEXT,
+                    operator_id BIGINT,
+                    reject_reason TEXT,
+                    FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS offseason_rating (
+                    user_id BIGINT PRIMARY KEY,
+                    slrpt INTEGER NOT NULL DEFAULT 0,
+                    win_mult DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS user_settings (
+                    user_id BIGINT PRIMARY KEY,
+                    language TEXT NOT NULL DEFAULT 'ru'
+                );
+                """
+            )
+            await db.commit()
+        return
+
+    async with _db_connect() as db:
         await db.execute("PRAGMA foreign_keys = ON;")
 
         await db.executescript(
@@ -72,7 +264,6 @@ async def init_db():
                 FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
             );
 
-            -- Off-season рейтинг и множитель побед
             CREATE TABLE IF NOT EXISTS offseason_rating (
                 user_id INTEGER PRIMARY KEY,
                 slrpt INTEGER NOT NULL DEFAULT 0,
@@ -88,7 +279,6 @@ async def init_db():
             """
         )
 
-        # Ensure user_settings has no FK dependency on users (language can be selected before verification).
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS user_settings_new (
@@ -111,12 +301,11 @@ async def init_db():
 
         await db.commit()
 
-
 # =========================
 # USERS
 # =========================
 async def save_user_name(user_id: int, name: str) -> bool:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         await db.execute("PRAGMA foreign_keys = ON;")
 
         async with db.execute(
@@ -140,21 +329,21 @@ async def save_user_name(user_id: int, name: str) -> bool:
 
 
 async def get_user_name(user_id: int) -> Optional[str]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         async with db.execute("SELECT name FROM users WHERE user_id = ?", (user_id,)) as cur:
             row = await cur.fetchone()
             return row[0] if row else None
 
 
 async def get_all_user_names() -> List[str]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         async with db.execute("SELECT name FROM users") as cur:
             rows = await cur.fetchall()
             return [r[0] for r in rows]
 
 
 async def get_user_id_by_name(name: str) -> Optional[int]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         async with db.execute("SELECT user_id FROM users WHERE name = ?", (name,)) as cur:
             row = await cur.fetchone()
             return row[0] if row else None
@@ -163,7 +352,7 @@ async def get_user_id_by_name(name: str) -> Optional[int]:
 async def set_user_language(user_id: int, language: str) -> None:
     if language not in ("ru", "en"):
         language = "ru"
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         await db.execute("PRAGMA foreign_keys = ON;")
         await db.execute(
             """
@@ -177,7 +366,7 @@ async def set_user_language(user_id: int, language: str) -> None:
 
 
 async def get_user_language(user_id: int) -> Optional[str]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         async with db.execute(
             "SELECT language FROM user_settings WHERE user_id = ?",
             (user_id,),
@@ -192,7 +381,7 @@ async def get_user_language(user_id: int) -> Optional[str]:
 # PLAYER STATS
 # =========================
 async def add_points(user_id: int, points: int, is_win: bool = False):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         await db.execute("PRAGMA foreign_keys = ON;")
 
         await db.execute(
@@ -221,7 +410,30 @@ async def create_verification_request(
     profile_file_id: str,
     chat_file_id: str,
 ) -> int:
-    async with aiosqlite.connect(DB_PATH) as db:
+    if USE_POSTGRES:
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO verification_requests
+                    (user_id, tg_username, status, game_name, game_uid, code_word,
+                     profile_file_id, chat_file_id, created_at)
+                VALUES
+                    ($1, $2, 'open', $3, $4, $5, $6, $7, $8)
+                RETURNING id
+                """,
+                user_id,
+                tg_username,
+                game_name,
+                game_uid,
+                code_word,
+                profile_file_id,
+                chat_file_id,
+                datetime.utcnow().isoformat(),
+            )
+            return int(row["id"])
+
+    async with _db_connect() as db:
         await db.execute("PRAGMA foreign_keys = ON;")
         cur = await db.execute(
             """
@@ -247,7 +459,7 @@ async def create_verification_request(
 
 
 async def get_verification_request(req_id: int) -> Optional[Tuple]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         async with db.execute(
             """
             SELECT
@@ -269,7 +481,7 @@ async def set_verification_request_status(
     operator_id: int,
     reject_reason: Optional[str] = None,
 ):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         await db.execute("PRAGMA foreign_keys = ON;")
         await db.execute(
             """
@@ -286,7 +498,7 @@ async def set_verification_request_status(
 
 
 async def list_open_verification_requests(limit: int = 20) -> List[Tuple]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         async with db.execute(
             """
             SELECT id, user_id, tg_username, game_name, game_uid, created_at
@@ -309,7 +521,7 @@ async def upsert_verified_account(
     game_uid: str,
     operator_id: int,
 ):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         await db.execute("PRAGMA foreign_keys = ON;")
         await db.execute(
             """
@@ -327,7 +539,7 @@ async def upsert_verified_account(
 
 
 async def is_user_verified(user_id: int) -> bool:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         async with db.execute(
             "SELECT 1 FROM verified_accounts WHERE user_id = ? LIMIT 1",
             (user_id,),
@@ -346,7 +558,7 @@ async def is_user_verified(user_id: int) -> bool:
 # NAME CHANGE REQUESTS
 # =========================
 async def has_open_name_change_request(user_id: int) -> bool:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         async with db.execute(
             "SELECT 1 FROM name_change_requests WHERE user_id = ? AND status = 'open' LIMIT 1",
             (user_id,),
@@ -360,7 +572,26 @@ async def create_name_change_request(
     new_name: str,
     screenshot_file_id: str,
 ) -> int:
-    async with aiosqlite.connect(DB_PATH) as db:
+    if USE_POSTGRES:
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO name_change_requests
+                    (user_id, old_name, new_name, screenshot_file_id, status, created_at)
+                VALUES
+                    ($1, $2, $3, $4, 'open', $5)
+                RETURNING id
+                """,
+                user_id,
+                old_name,
+                new_name,
+                screenshot_file_id,
+                datetime.utcnow().isoformat(),
+            )
+            return int(row["id"])
+
+    async with _db_connect() as db:
         await db.execute("PRAGMA foreign_keys = ON;")
         cur = await db.execute(
             """
@@ -376,7 +607,7 @@ async def create_name_change_request(
 
 
 async def get_name_change_request(req_id: int) -> Optional[Tuple]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         async with db.execute(
             """
             SELECT
@@ -396,7 +627,7 @@ async def set_name_change_request_status(
     operator_id: int,
     reject_reason: Optional[str] = None,
 ):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         await db.execute("PRAGMA foreign_keys = ON;")
         await db.execute(
             """
@@ -413,7 +644,7 @@ async def set_name_change_request_status(
 
 
 async def list_open_name_change_requests(limit: int = 20) -> List[Tuple]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         async with db.execute(
             """
             SELECT id, user_id, old_name, new_name, created_at
@@ -449,7 +680,7 @@ def _base_slrpt_delta(current_slrpt: int, place: int) -> int:
     return table[place - 1]
 
 
-async def _get_or_create_offseason_row(db: aiosqlite.Connection, user_id: int) -> tuple[int, float]:
+async def _get_or_create_offseason_row(db, user_id: int) -> tuple[int, float]:
     async with db.execute("SELECT slrpt, win_mult FROM offseason_rating WHERE user_id = ?", (user_id,)) as cur:
         row = await cur.fetchone()
         if row:
@@ -477,7 +708,7 @@ async def apply_offseason_result(user_id: int, place: int) -> tuple[int, int, fl
       After T1: win_mult *= 1.1, cap 2.0
     - On T5: win_mult resets to 1.0
     """
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _db_connect() as db:
         await db.execute("PRAGMA foreign_keys = ON;")
 
         old_slrpt, win_mult = await _get_or_create_offseason_row(db, user_id)

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import get_tg_user
 from .crud import ensure_user_exists, get_me, get_season_rating, get_slrpt_rating
-from .db import get_session
+from .db import get_session, init_backend_schema
 from .schemas import MeResponse, RatingResponse
 from .settings import settings
 
@@ -28,6 +28,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def startup_event():
+    await init_backend_schema()
 
 
 @app.get("/")

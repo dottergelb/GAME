@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",
@@ -11,13 +12,16 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # путь до sqlite файла бота
+    # Shared DB URL (recommended, e.g. Postgres on Render)
+    DATABASE_URL: str = ""
+
+    # Local sqlite fallback
     SQLITE_PATH: str = "users.db"
 
-    # токен бота нужен для проверки initData
+    # Bot token is used to verify Telegram initData
     BOT_TOKEN: str = "PASTE_TELEGRAM_BOT_TOKEN_HERE"
 
-    # для локальной разработки miniapp
+    # Miniapp / CORS settings
     CORS_ORIGINS: str = "http://localhost:5173"
     ALLOW_DEV_AUTH: bool = True
     TELEGRAM_AUTH_MAX_AGE_SECONDS: int = 86400
@@ -33,5 +37,6 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [x.strip() for x in self.CORS_ORIGINS.split(",") if x.strip()]
+
 
 settings = Settings()

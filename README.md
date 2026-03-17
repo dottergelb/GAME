@@ -65,6 +65,18 @@ python bot.py
 - If `ALLOW_DEV_AUTH=true` and Telegram header is missing: backend accepts `X-User-Id`.
 - If `ALLOW_DEV_AUTH=false`: only real Telegram auth is accepted.
 
+## 6) SQLite -> Postgres migration
+1. Set `DATABASE_URL` in root `.env`.
+2. Run:
+```bash
+python tools/migrate_sqlite_to_postgres.py
+```
+or on Windows:
+```bat
+migrate_to_postgres.bat
+```
+3. Restart backend + bot.
+
 ## Windows one-click scripts
 - `start_backend.bat` - validate env and run backend
 - `start_backend_prod.bat` - run backend with `ALLOW_DEV_AUTH=false`

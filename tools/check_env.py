@@ -7,7 +7,7 @@ from dotenv import dotenv_values
 
 
 REQUIRED_BY_MODE = {
-    "backend": ("BOT_TOKEN", "SQLITE_PATH", "CORS_ORIGINS"),
+    "backend": ("BOT_TOKEN", "DATABASE_URL", "CORS_ORIGINS"),
     "bot": ("BOT_TOKEN", "LEADERBOARD_URL"),
     "ocr": ("OPENAI_API_KEY",),
 }
