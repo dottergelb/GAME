@@ -7,7 +7,7 @@ __pycache__/
 *.log
 *.err.log
 *.out.log
-users.db
 *.db
+!users.db
 miniapp/node_modules/
 miniapp/dist/
