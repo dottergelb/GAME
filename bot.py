@@ -411,8 +411,8 @@ def platform_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="рџ–Ґ PC", callback_data="platform|pc"),
-                InlineKeyboardButton(text="рџ“± Android", callback_data="platform|android"),
+                InlineKeyboardButton(text="🖥 PC", callback_data="platform|pc"),
+                InlineKeyboardButton(text="📱 Android", callback_data="platform|android"),
             ]
         ]
     )
@@ -432,16 +432,16 @@ def build_team_status_text(team_id: str, window_minutes: int) -> str:
     queue_count = len(search_queue)
 
     header = (
-        f"рџЋ® Match found!\n"
+        f"🎮 Match found!\n"
         f"Phase: {phase}/2 | Confirm window: {window_minutes} min\n"
-        f"вњ… Confirmed: {confirmed_count}/{total} (min {MIN_CONFIRMED_TO_START})\n"
-        f"рџ”Ќ In search: {queue_count}\n\n"
+        f"✅ Confirmed: {confirmed_count}/{total} (min {MIN_CONFIRMED_TO_START})\n"
+        f"🔍 In search: {queue_count}\n\n"
     )
 
     lines = []
     for i, p in enumerate(players, 1):
         if p in confirmed:
-            mark = "вњ…"
+            mark = "✅"
         elif p in pending:
             mark = "вЏі"
         else:
@@ -474,7 +474,7 @@ async def update_team_confirm_messages(team_id: str, window_minutes: int):
             markup = None
         else:
             markup = InlineKeyboardMarkup(
-                inline_keyboard=[[InlineKeyboardButton(text="вњ… Confirm participation", callback_data=f"confirm|{team_id}|{name}")]]
+                inline_keyboard=[[InlineKeyboardButton(text="✅ Confirm participation", callback_data=f"confirm|{team_id}|{name}")]]
             )
 
         try:
@@ -511,7 +511,7 @@ async def _collect_queue_candidates() -> list[tuple[int, str]]:
 def _build_queue_text(eligible_count: int) -> str:
     need_more = max(0, PLAYERS_PER_MATCH - eligible_count)
     return (
-        "рџ”Ќ You are in the search queue.\n"
+        "🔍 You are in the search queue.\n"
         f"Players in search: {eligible_count}/{PLAYERS_PER_MATCH}\n"
         f"Need {need_more} more to start a match."
     )
@@ -600,7 +600,7 @@ async def _start_match_from_selected(selected: list[tuple[int, str]]):
     # otherwise the match can "never start" because nobody receives the confirm message.
     for uid, p in selected:
         kb = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="вњ… Confirm participation", callback_data=f"confirm|{team_id}|{p}")]]
+            inline_keyboard=[[InlineKeyboardButton(text="✅ Confirm participation", callback_data=f"confirm|{team_id}|{p}")]]
         )
         msg = await safe_send(uid, team_message + f"\n\nPlease confirm within {CONFIRM_MINUTES} minutes.", reply_markup=kb)
         if msg:
@@ -611,7 +611,7 @@ async def _start_match_from_selected(selected: list[tuple[int, str]]):
     # Captain panel to captain_uid (single message, no extra spam)
     await safe_send(
         captain_uid,
-        team_message + "\nрџ”‘ You are the captain!\n\nрџ“ё When match ends, press рџЏЃ Open results so everyone can send screenshots.",
+        team_message + "\n🔑 You are the captain!\n\n📸 When match ends, press 🏁 Open results so everyone can send screenshots.",
         reply_markup=captain_panel_keyboard(team_id),
     )
 
@@ -650,14 +650,14 @@ def captain_panel_keyboard(team_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Send code to team", callback_data=f"send_code_{team_id}")],
-            [InlineKeyboardButton(text="рџЋ– Transfer captain", callback_data=f"change_captain|{team_id}")],
+            [InlineKeyboardButton(text="🎖 Transfer captain", callback_data=f"change_captain|{team_id}")],
         ]
     )
 
 def requests_menu_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.button(text="вњ… Verification requests", callback_data="op_req|ver")
-    kb.button(text="вњЏпёЏ Name change requests", callback_data="op_req|name")
+    kb.button(text="✅ Verification requests", callback_data="op_req|ver")
+    kb.button(text="✏️ Name change requests", callback_data="op_req|name")
     kb.adjust(1, 1)
     return kb.as_markup()
 
@@ -678,7 +678,7 @@ def generate_code_word() -> str:
 def operator_kb(req_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="вњ… Approve", callback_data=f"vr_ok|{req_id}")],
+            [InlineKeyboardButton(text="✅ Approve", callback_data=f"vr_ok|{req_id}")],
             [InlineKeyboardButton(text="вќЊ Reject", callback_data=f"vr_no|{req_id}")],
         ]
     )
@@ -705,7 +705,7 @@ def parse_nick_uid(text: str) -> Optional[tuple[str, str]]:
 def name_change_op_kb(req_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="вњ… Approve name", callback_data=f"cn_ok|{req_id}")],
+            [InlineKeyboardButton(text="✅ Approve name", callback_data=f"cn_ok|{req_id}")],
             [InlineKeyboardButton(text="вќЊ Reject name", callback_data=f"cn_no|{req_id}")],
         ]
     )
@@ -903,7 +903,7 @@ async def start_match(team_id: str):
     # stop any pending confirmation deadline
     team_deadline.pop(team_id, None)
 
-    text = "рџљЂ The match is starting!\n\nPlayers:\n"
+    text = "🚀 The match is starting!\n\nPlayers:\n"
     for i, name in enumerate(players, 1):
         text += f"{i}. {name}\n"
 
@@ -921,7 +921,7 @@ async def start_match(team_id: str):
         try:
             await bot.send_message(
                 cap_id,
-                "рџ“ё Send the final results screenshot here.",
+                "📸 Send the final results screenshot here.",
                 reply_markup=await get_keyboard_for_user(cap_id),
             )
         except Exception:
@@ -929,7 +929,7 @@ async def start_match(team_id: str):
 
         if EXAMPLE_SCREENSHOT_FILE_ID:
             try:
-                await bot.send_photo(cap_id, photo=EXAMPLE_SCREENSHOT_FILE_ID, caption="Example screenshot рџ‘†")
+                await bot.send_photo(cap_id, photo=EXAMPLE_SCREENSHOT_FILE_ID, caption="Example screenshot 👆")
             except Exception:
                 pass
 
@@ -1034,7 +1034,7 @@ async def fill_team_and_request_second_confirmation(team_id: str):
     for nm in players:
         uid = team_name_to_uid.get(team_id, {}).get(nm)
         if uid:
-            await safe_send(uid, "рџ§© Not enough confirmations. Filling players... Second confirm window: 5 minutes.")
+            await safe_send(uid, "🧩 Not enough confirmations. Filling players... Second confirm window: 5 minutes.")
 
     # send confirm messages to new players (and refresh for old ones)
     for nm in added:
@@ -1042,7 +1042,7 @@ async def fill_team_and_request_second_confirmation(team_id: str):
         if not uid:
             continue
         kb = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="вњ… Confirm participation", callback_data=f"confirm|{team_id}|{nm}")]]
+            inline_keyboard=[[InlineKeyboardButton(text="✅ Confirm participation", callback_data=f"confirm|{team_id}|{nm}")]]
         )
         msg = await safe_send(uid, build_team_status_text(team_id, SECOND_CONFIRM_MINUTES) + f"\n\nPlease confirm within {SECOND_CONFIRM_MINUTES} minutes.", reply_markup=kb)
         if msg:
@@ -1083,8 +1083,8 @@ async def finalize_results_direct(team_id: str, names: list[str]):
     names = (names or [])[:8]
     team_players = active_teams.get(team_id, [])
 
-    medals = ["рџҐ‡", "рџҐ€", "рџҐ‰"]
-    lines = ["рџЏ† Results:"]
+    medals = ["🥇", "🥈", "🥉"]
+    lines = ["🏆 Results:"]
 
     for place, name in enumerate(names, start=1):
         pts = POINTS_BY_PLACE[place - 1] if place <= len(POINTS_BY_PLACE) else 0
@@ -1187,7 +1187,7 @@ async def select_language(message: types.Message, state: FSMContext):
         await message.answer(_text(lang, "start_need_verify"), reply_markup=kb)
 
 # =========================
-# OPERATOR BUTTON: рџ“‹ Requests
+# OPERATOR BUTTON: 📋 Requests
 # =========================
 @dp.message(lambda m: button_is(m.text, "requests"))
 async def op_requests_btn(message: types.Message):
@@ -1273,7 +1273,7 @@ async def op_open_request(callback: types.CallbackQuery):
 
         uname = f"@{tg_username}" if tg_username else "вЂ”"
         text = (
-            f"вњ… Verification request #{rid}\n"
+            f"✅ Verification request #{rid}\n"
             f"tg_id: {user_id}\n"
             f"tg: {uname}\n"
             f"name: {game_name}\n"
@@ -1298,7 +1298,7 @@ async def op_open_request(callback: types.CallbackQuery):
         _id, user_id, old_name, new_name, screenshot_file_id, status, created_at, decided_at, operator_id, reject_reason = row
 
         text = (
-            f"вњЏпёЏ Name change request #{rid}\n"
+            f"✏️ Name change request #{rid}\n"
             f"tg_id: {user_id}\n"
             f"old: {old_name or 'вЂ”'}\n"
             f"new: {new_name}\n"
@@ -1536,7 +1536,7 @@ async def verify_get_chat(message: types.Message, state: FSMContext):
 
     uname = f"@{message.from_user.username}" if message.from_user.username else "вЂ”"
     text = (
-        f"рџ†• Verification request #{req_id}\n"
+        f"🆕 Verification request #{req_id}\n"
         f"tg_id: {message.from_user.id}\n"
         f"tg username: {uname}\n"
         f"game name: {game_name}\n"
@@ -1775,12 +1775,12 @@ async def change_name_photo_input(message: types.Message, state: FSMContext):
 
     uname = f"@{message.from_user.username}" if message.from_user.username else "вЂ”"
     text = (
-        f"рџ“ќ Name change request #{req_id}\n"
+        f"📝 Name change request #{req_id}\n"
         f"tg_id: {user_id}\n"
         f"tg username: {uname}\n"
         f"old name: {old_name or 'вЂ”'}\n"
         f"new name: {new_name}\n"
-        f"рџ“ё Screenshot attached below"
+        f"📸 Screenshot attached below"
     )
 
     for op_id in OPERATORS:
@@ -2334,7 +2334,7 @@ async def handle_match_photo(message: types.Message):
             await message.answer(tr(lang, "AI notes:\n- ", "Заметки AI:\n- ") + "\n- ".join(parsed.notes))
         return
 
-    medals = ["рџҐ‡", "рџҐ€", "рџҐ‰"]
+    medals = ["🥇", "🥈", "🥉"]
     lines = [tr(lang, "✅ Detected results:", "✅ Найденные результаты:")]
     for i, n in enumerate(names, start=1):
         prefix = medals[i - 1] if i <= 3 else f"{i}."
