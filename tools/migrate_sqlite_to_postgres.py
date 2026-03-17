@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import os
 import sqlite3
+import sys
 from pathlib import Path
 
 try:
@@ -22,6 +23,10 @@ TABLE_ORDER = [
     "offseason_rating",
     "user_settings",
 ]
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def _normalize_db_url(url: str) -> str:
