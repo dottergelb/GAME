@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import re
+import ssl
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Tuple
@@ -19,6 +21,14 @@ DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
 DB_PATH = os.getenv("SQLITE_PATH", "users.db")
 USE_POSTGRES = DATABASE_URL.startswith("postgres://") or DATABASE_URL.startswith("postgresql://")
 _POOL: asyncpg.Pool | None = None
+_FORCE_SQLITE_FALLBACK = False
+
+
+def force_sqlite_fallback(reason: str = "") -> None:
+    global _FORCE_SQLITE_FALLBACK
+    _FORCE_SQLITE_FALLBACK = True
+    if reason:
+        print(f"[db] force sqlite fallback: {reason}", flush=True)
 
 
 def _normalize_db_url(url: str) -> str:
@@ -44,7 +54,15 @@ async def _get_pool() -> asyncpg.Pool:
             raise RuntimeError("DATABASE_URL is not configured for PostgreSQL mode")
         if asyncpg is None:
             raise RuntimeError("PostgreSQL mode requires asyncpg. Install dependencies from requirements.txt")
-        _POOL = await asyncpg.create_pool(_normalize_db_url(DATABASE_URL), min_size=1, max_size=10)
+        ssl_ctx = ssl.create_default_context()
+        _POOL = await asyncpg.create_pool(
+            _normalize_db_url(DATABASE_URL),
+            ssl=ssl_ctx,
+            timeout=15,
+            command_timeout=30,
+            min_size=1,
+            max_size=10,
+        )
     return _POOL
 
 
@@ -70,18 +88,8 @@ class _PGConnection:
     def __init__(self, conn: asyncpg.Connection):
         self.conn = conn
 
-    async def execute(self, sql: str, params=()):
-        sql_clean = sql.strip()
-        if sql_clean.upper().startswith("PRAGMA"):
-            return _PGCursor()
-
-        sql_pg = _to_pg_placeholders(sql)
-        if sql_clean.upper().startswith("SELECT"):
-            rows = await self.conn.fetch(sql_pg, *params)
-            return _PGCursor(rows=rows)
-
-        await self.conn.execute(sql_pg, *params)
-        return _PGCursor()
+    def execute(self, sql: str, params=()):
+        return _PGExecuteProxy(self.conn, sql, params)
 
     async def executescript(self, script: str):
         statements = [s.strip() for s in script.split(";") if s.strip()]
@@ -93,6 +101,42 @@ class _PGConnection:
 
     async def __aenter__(self):
         return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+class _PGExecuteProxy:
+    def __init__(self, conn: asyncpg.Connection, sql: str, params=()):
+        self.conn = conn
+        self.sql = sql
+        self.params = params
+        self._cursor: _PGCursor | None = None
+
+    async def _run(self) -> _PGCursor:
+        if self._cursor is not None:
+            return self._cursor
+
+        sql_clean = self.sql.strip()
+        if sql_clean.upper().startswith("PRAGMA"):
+            self._cursor = _PGCursor()
+            return self._cursor
+
+        sql_pg = _to_pg_placeholders(self.sql)
+        if sql_clean.upper().startswith("SELECT"):
+            rows = await self.conn.fetch(sql_pg, *self.params)
+            self._cursor = _PGCursor(rows=rows)
+            return self._cursor
+
+        await self.conn.execute(sql_pg, *self.params)
+        self._cursor = _PGCursor()
+        return self._cursor
+
+    def __await__(self):
+        return self._run().__await__()
+
+    async def __aenter__(self):
+        return await self._run()
 
     async def __aexit__(self, exc_type, exc, tb):
         return False
@@ -117,7 +161,7 @@ class _PGConnectCtx:
 
 
 def _db_connect():
-    if USE_POSTGRES:
+    if USE_POSTGRES and not _FORCE_SQLITE_FALLBACK:
         return _PGConnectCtx()
     return aiosqlite.connect(DB_PATH)
 
@@ -126,80 +170,88 @@ def _db_connect():
 # INIT DB
 # =========================
 async def init_db():
+    global _FORCE_SQLITE_FALLBACK
     if USE_POSTGRES:
-        async with _db_connect() as db:
-            await db.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS users (
-                    id BIGSERIAL PRIMARY KEY,
-                    user_id BIGINT UNIQUE,
-                    name TEXT NOT NULL UNIQUE
-                );
+        try:
+            async def _init_pg_schema():
+                async with _db_connect() as db:
+                    await db.executescript(
+                        """
+                        CREATE TABLE IF NOT EXISTS users (
+                            id BIGSERIAL PRIMARY KEY,
+                            user_id BIGINT UNIQUE,
+                            name TEXT NOT NULL UNIQUE
+                        );
 
-                CREATE TABLE IF NOT EXISTS player_stats (
-                    user_id BIGINT PRIMARY KEY,
-                    total_points INTEGER DEFAULT 0,
-                    matches_played INTEGER DEFAULT 0,
-                    wins INTEGER DEFAULT 0,
-                    FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
-                );
+                        CREATE TABLE IF NOT EXISTS player_stats (
+                            user_id BIGINT PRIMARY KEY,
+                            total_points INTEGER DEFAULT 0,
+                            matches_played INTEGER DEFAULT 0,
+                            wins INTEGER DEFAULT 0,
+                            FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                        );
 
-                CREATE TABLE IF NOT EXISTS verification_requests (
-                    id BIGSERIAL PRIMARY KEY,
-                    user_id BIGINT NOT NULL,
-                    tg_username TEXT,
-                    status TEXT NOT NULL DEFAULT 'open',
-                    game_name TEXT NOT NULL,
-                    game_uid TEXT NOT NULL,
-                    code_word TEXT NOT NULL,
-                    profile_file_id TEXT NOT NULL,
-                    chat_file_id TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    decided_at TEXT,
-                    operator_id BIGINT,
-                    reject_reason TEXT,
-                    FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
-                );
+                        CREATE TABLE IF NOT EXISTS verification_requests (
+                            id BIGSERIAL PRIMARY KEY,
+                            user_id BIGINT NOT NULL,
+                            tg_username TEXT,
+                            status TEXT NOT NULL DEFAULT 'open',
+                            game_name TEXT NOT NULL,
+                            game_uid TEXT NOT NULL,
+                            code_word TEXT NOT NULL,
+                            profile_file_id TEXT NOT NULL,
+                            chat_file_id TEXT NOT NULL,
+                            created_at TEXT NOT NULL,
+                            decided_at TEXT,
+                            operator_id BIGINT,
+                            reject_reason TEXT,
+                            FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                        );
 
-                CREATE TABLE IF NOT EXISTS verified_accounts (
-                    user_id BIGINT PRIMARY KEY,
-                    game_name TEXT NOT NULL,
-                    game_uid TEXT NOT NULL UNIQUE,
-                    verified_at TEXT NOT NULL,
-                    operator_id BIGINT NOT NULL,
-                    FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
-                );
+                        CREATE TABLE IF NOT EXISTS verified_accounts (
+                            user_id BIGINT PRIMARY KEY,
+                            game_name TEXT NOT NULL,
+                            game_uid TEXT NOT NULL UNIQUE,
+                            verified_at TEXT NOT NULL,
+                            operator_id BIGINT NOT NULL,
+                            FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                        );
 
-                CREATE TABLE IF NOT EXISTS name_change_requests (
-                    id BIGSERIAL PRIMARY KEY,
-                    user_id BIGINT NOT NULL,
-                    old_name TEXT,
-                    new_name TEXT NOT NULL,
-                    screenshot_file_id TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'open',
-                    created_at TEXT NOT NULL,
-                    decided_at TEXT,
-                    operator_id BIGINT,
-                    reject_reason TEXT,
-                    FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
-                );
+                        CREATE TABLE IF NOT EXISTS name_change_requests (
+                            id BIGSERIAL PRIMARY KEY,
+                            user_id BIGINT NOT NULL,
+                            old_name TEXT,
+                            new_name TEXT NOT NULL,
+                            screenshot_file_id TEXT NOT NULL,
+                            status TEXT NOT NULL DEFAULT 'open',
+                            created_at TEXT NOT NULL,
+                            decided_at TEXT,
+                            operator_id BIGINT,
+                            reject_reason TEXT,
+                            FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                        );
 
-                CREATE TABLE IF NOT EXISTS offseason_rating (
-                    user_id BIGINT PRIMARY KEY,
-                    slrpt INTEGER NOT NULL DEFAULT 0,
-                    win_mult DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-                    updated_at TEXT NOT NULL,
-                    FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
-                );
+                        CREATE TABLE IF NOT EXISTS offseason_rating (
+                            user_id BIGINT PRIMARY KEY,
+                            slrpt INTEGER NOT NULL DEFAULT 0,
+                            win_mult DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+                            updated_at TEXT NOT NULL,
+                            FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                        );
 
-                CREATE TABLE IF NOT EXISTS user_settings (
-                    user_id BIGINT PRIMARY KEY,
-                    language TEXT NOT NULL DEFAULT 'ru'
-                );
-                """
-            )
-            await db.commit()
-        return
+                        CREATE TABLE IF NOT EXISTS user_settings (
+                            user_id BIGINT PRIMARY KEY,
+                            language TEXT NOT NULL DEFAULT 'ru'
+                        );
+                        """
+                    )
+                    await db.commit()
+
+            await asyncio.wait_for(_init_pg_schema(), timeout=20)
+            return
+        except Exception as e:
+            _FORCE_SQLITE_FALLBACK = True
+            print(f"[db] postgres unavailable, fallback to sqlite: {e}", flush=True)
 
     async with _db_connect() as db:
         await db.execute("PRAGMA foreign_keys = ON;")
@@ -410,7 +462,7 @@ async def create_verification_request(
     profile_file_id: str,
     chat_file_id: str,
 ) -> int:
-    if USE_POSTGRES:
+    if USE_POSTGRES and not _FORCE_SQLITE_FALLBACK:
         pool = await _get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -572,7 +624,7 @@ async def create_name_change_request(
     new_name: str,
     screenshot_file_id: str,
 ) -> int:
-    if USE_POSTGRES:
+    if USE_POSTGRES and not _FORCE_SQLITE_FALLBACK:
         pool = await _get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(

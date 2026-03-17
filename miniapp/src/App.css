@@ -1,7 +1,7 @@
 .layout {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr;
 }
 
 .app-header {
@@ -20,7 +20,7 @@
 }
 
 .content {
-  padding: 8px 16px 16px;
+  padding: 8px 16px calc(84px + env(safe-area-inset-bottom, 0px));
 }
 
 .screen-title {
@@ -74,12 +74,18 @@
 }
 
 .bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
-  padding: 10px 12px 14px;
+  padding: 10px 12px calc(14px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--stroke);
   background: var(--nav-bg);
+  box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.08);
 }
 
 .tab {

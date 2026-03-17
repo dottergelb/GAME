@@ -40,6 +40,7 @@ from openai_vision_table import extract_player_names  # Names-only OCR parser
 
 from database import (
     init_db,
+    force_sqlite_fallback,
     save_user_name,
     get_user_name,
     get_user_language,
@@ -820,7 +821,10 @@ async def captain_id_for_team(team_id: str) -> int | None:
 # =========================
 @dp.startup()
 async def on_startup():
-    await init_db()
+    print("[startup] begin", flush=True)
+    # Do not block polling on DB warmup: network stalls to DB must not freeze bot commands.
+    force_sqlite_fallback("startup non-blocking mode")
+    asyncio.create_task(init_db())
     try:
         parsed = urlparse(LEADERBOARD_URL)
         if parsed.scheme == "https" and parsed.hostname:
