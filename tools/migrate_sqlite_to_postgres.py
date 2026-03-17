@@ -4,7 +4,7 @@ import argparse
 import asyncio
 import os
 import sqlite3
-import sys
+import ssl
 from pathlib import Path
 
 try:
@@ -23,11 +23,6 @@ TABLE_ORDER = [
     "offseason_rating",
     "user_settings",
 ]
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
 
 def _normalize_db_url(url: str) -> str:
     return url.replace("postgres://", "postgresql://", 1)
@@ -234,35 +229,142 @@ async def _sync_sequences(pg: asyncpg.Connection) -> None:
     )
 
 
-async def run(sqlite_path: Path, database_url: str) -> None:
-    from database import init_db
+async def _ensure_postgres_schema(pg: asyncpg.Connection) -> None:
+    await pg.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT UNIQUE,
+            name TEXT NOT NULL UNIQUE
+        )
+        """
+    )
+    await pg.execute(
+        """
+        CREATE TABLE IF NOT EXISTS player_stats (
+            user_id BIGINT PRIMARY KEY,
+            total_points INTEGER DEFAULT 0,
+            matches_played INTEGER DEFAULT 0,
+            wins INTEGER DEFAULT 0,
+            FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        )
+        """
+    )
+    await pg.execute(
+        """
+        CREATE TABLE IF NOT EXISTS verification_requests (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            tg_username TEXT,
+            status TEXT NOT NULL DEFAULT 'open',
+            game_name TEXT NOT NULL,
+            game_uid TEXT NOT NULL,
+            code_word TEXT NOT NULL,
+            profile_file_id TEXT NOT NULL,
+            chat_file_id TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            decided_at TEXT,
+            operator_id BIGINT,
+            reject_reason TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        )
+        """
+    )
+    await pg.execute(
+        """
+        CREATE TABLE IF NOT EXISTS verified_accounts (
+            user_id BIGINT PRIMARY KEY,
+            game_name TEXT NOT NULL,
+            game_uid TEXT NOT NULL UNIQUE,
+            verified_at TEXT NOT NULL,
+            operator_id BIGINT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        )
+        """
+    )
+    await pg.execute(
+        """
+        CREATE TABLE IF NOT EXISTS name_change_requests (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            old_name TEXT,
+            new_name TEXT NOT NULL,
+            screenshot_file_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            created_at TEXT NOT NULL,
+            decided_at TEXT,
+            operator_id BIGINT,
+            reject_reason TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        )
+        """
+    )
+    await pg.execute(
+        """
+        CREATE TABLE IF NOT EXISTS offseason_rating (
+            user_id BIGINT PRIMARY KEY,
+            slrpt INTEGER NOT NULL DEFAULT 0,
+            win_mult DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        )
+        """
+    )
+    await pg.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_settings (
+            user_id BIGINT PRIMARY KEY,
+            language TEXT NOT NULL DEFAULT 'ru'
+        )
+        """
+    )
 
+
+async def run(sqlite_path: Path, database_url: str) -> None:
     if not sqlite_path.exists():
         raise RuntimeError(f"SQLite file not found: {sqlite_path}")
 
-    # Ensure target schema exists in Postgres.
-    await init_db()
-
+    print(f"Using sqlite: {sqlite_path}", flush=True)
     sqlite_conn = sqlite3.connect(str(sqlite_path))
     sqlite_conn.row_factory = sqlite3.Row
 
-    pg = await asyncpg.connect(_normalize_db_url(database_url))
+    print("Connecting to Postgres...", flush=True)
+    ssl_ctx = ssl.create_default_context()
+    pg = await asyncpg.connect(
+        _normalize_db_url(database_url),
+        ssl=ssl_ctx,
+        timeout=30,
+        command_timeout=30,
+    )
     try:
+        print("Ensuring schema...", flush=True)
+        await _ensure_postgres_schema(pg)
+        print("Reading sqlite rows...", flush=True)
         rows_by_table = {table: _fetch_rows(sqlite_conn, table) for table in TABLE_ORDER}
+        for table in TABLE_ORDER:
+            print(f"  sqlite {table}: {len(rows_by_table[table])}", flush=True)
 
         migrated = {}
+        print("Migrating users...", flush=True)
         migrated["users"] = await _migrate_table_users(pg, rows_by_table["users"])
+        print("Migrating player_stats...", flush=True)
         migrated["player_stats"] = await _migrate_table_player_stats(pg, rows_by_table["player_stats"])
+        print("Migrating verification_requests...", flush=True)
         migrated["verification_requests"] = await _migrate_table_verification_requests(
             pg, rows_by_table["verification_requests"]
         )
+        print("Migrating verified_accounts...", flush=True)
         migrated["verified_accounts"] = await _migrate_table_verified_accounts(pg, rows_by_table["verified_accounts"])
+        print("Migrating name_change_requests...", flush=True)
         migrated["name_change_requests"] = await _migrate_table_name_change_requests(
             pg, rows_by_table["name_change_requests"]
         )
+        print("Migrating offseason_rating...", flush=True)
         migrated["offseason_rating"] = await _migrate_table_offseason_rating(pg, rows_by_table["offseason_rating"])
+        print("Migrating user_settings...", flush=True)
         migrated["user_settings"] = await _migrate_table_user_settings(pg, rows_by_table["user_settings"])
 
+        print("Syncing sequences...", flush=True)
         await _sync_sequences(pg)
 
         print("Migration completed.")
@@ -274,6 +376,9 @@ async def run(sqlite_path: Path, database_url: str) -> None:
 
 
 def main() -> int:
+    if os.name == "nt":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
     load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
     parser = argparse.ArgumentParser(description="Migrate data from SQLite to Postgres")
