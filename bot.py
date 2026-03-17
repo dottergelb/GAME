@@ -464,7 +464,7 @@ async def update_team_confirm_messages(team_id: str, window_minutes: int):
         except Exception:
             name = None
 
-        # If user is not in this team anymore вЂ” try to clean mapping
+        # If user is not in this team anymore — try to clean mapping
         if not name or name not in active_teams.get(team_id, []):
             msg_map.pop(uid, None)
             continue
@@ -1103,12 +1103,12 @@ async def finalize_results_direct(team_id: str, names: list[str]):
             elif place == 5:
                 extra += " | win reset"
 
-            lines.append(f"{prefix} {name} в†’ {matched_name} | {pts:+} pts (match {sc:.2f}){extra}")
+            lines.append(f"{prefix} {name} → {matched_name} | {pts:+} pts (match {sc:.2f}){extra}")
         else:
             prefix = medals[place - 1] if place <= 3 else f"{place}."
             lines.append(f"{prefix} {name} | вќЊ not found in DB | {pts:+} pts (skipped)")
 
-    lines.append("\nв„№ If someone is 'not found in DB' вЂ” their verified name in bot must match in-game nick.")
+    lines.append("\nℹ If someone is 'not found in DB' — their verified name in bot must match in-game nick.")
     result_text = "\n".join(lines)
 
     match_results_sent.add(team_id)
@@ -1220,7 +1220,7 @@ async def op_req_menu(callback: types.CallbackQuery):
         ids = [r[0] for r in rows]
         text_lines = [tr(lang, "✅ Open verification requests:", "✅ Открытые заявки на верификацию:")]
         for (rid, user_id, tg_username, game_name, game_uid, created_at) in rows:
-            uname = f"@{tg_username}" if tg_username else "вЂ”"
+            uname = f"@{tg_username}" if tg_username else "—"
             text_lines.append(f"#{rid} | {uname} | {game_name} | {game_uid} | {created_at}")
         await callback.message.edit_text("\n".join(text_lines), reply_markup=requests_list_kb("ver", ids))
         await callback.answer()
@@ -1236,7 +1236,7 @@ async def op_req_menu(callback: types.CallbackQuery):
         ids = [r[0] for r in rows]
         text_lines = [tr(lang, "✏️ Open name change requests:", "✏️ Открытые заявки на смену имени:")]
         for (rid, user_id, old_name, new_name, created_at) in rows:
-            text_lines.append(f"#{rid} | {old_name or 'вЂ”'} в†’ {new_name} | {created_at}")
+            text_lines.append(f"#{rid} | {old_name or '—'} → {new_name} | {created_at}")
         await callback.message.edit_text("\n".join(text_lines), reply_markup=requests_list_kb("name", ids))
         await callback.answer()
         return
@@ -1271,7 +1271,7 @@ async def op_open_request(callback: types.CallbackQuery):
             created_at, decided_at, operator_id, reject_reason
         ) = row
 
-        uname = f"@{tg_username}" if tg_username else "вЂ”"
+        uname = f"@{tg_username}" if tg_username else "—"
         text = (
             f"✅ Verification request #{rid}\n"
             f"tg_id: {user_id}\n"
@@ -1300,7 +1300,7 @@ async def op_open_request(callback: types.CallbackQuery):
         text = (
             f"✏️ Name change request #{rid}\n"
             f"tg_id: {user_id}\n"
-            f"old: {old_name or 'вЂ”'}\n"
+            f"old: {old_name or '—'}\n"
             f"new: {new_name}\n"
             f"status: {status}\n"
             f"created: {created_at}"
@@ -1534,7 +1534,7 @@ async def verify_get_chat(message: types.Message, state: FSMContext):
     )
     await state.clear()
 
-    uname = f"@{message.from_user.username}" if message.from_user.username else "вЂ”"
+    uname = f"@{message.from_user.username}" if message.from_user.username else "—"
     text = (
         f"🆕 Verification request #{req_id}\n"
         f"tg_id: {message.from_user.id}\n"
@@ -1773,12 +1773,12 @@ async def change_name_photo_input(message: types.Message, state: FSMContext):
     )
     await state.clear()
 
-    uname = f"@{message.from_user.username}" if message.from_user.username else "вЂ”"
+    uname = f"@{message.from_user.username}" if message.from_user.username else "—"
     text = (
         f"📝 Name change request #{req_id}\n"
         f"tg_id: {user_id}\n"
         f"tg username: {uname}\n"
-        f"old name: {old_name or 'вЂ”'}\n"
+        f"old name: {old_name or '—'}\n"
         f"new name: {new_name}\n"
         f"📸 Screenshot attached below"
     )
@@ -2327,7 +2327,7 @@ async def handle_match_photo(message: types.Message):
     if len(names) < 8:
         txt = (
             tr(lang, f"⚠ Detected only {len(names)} players (need 8).\n\n", f"⚠ Найдено только {len(names)} игроков (нужно 8).\n\n")
-            + ("\n".join([f"{i+1}. {n}" for i, n in enumerate(names)]) if names else "вЂ”")
+            + ("\n".join([f"{i+1}. {n}" for i, n in enumerate(names)]) if names else "—")
         )
         await message.answer(txt)
         if parsed.notes:
