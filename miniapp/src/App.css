@@ -2,6 +2,18 @@
   min-height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr;
+  position: relative;
+  isolation: isolate;
+}
+
+.layout::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(180deg, rgba(10, 15, 30, 0.46) 0%, rgba(10, 15, 30, 0.26) 42%, rgba(10, 15, 30, 0.14) 100%),
+    url("/header.jpg") center top / cover no-repeat;
 }
 
 .app-header {
@@ -45,7 +57,8 @@
 .stat-card {
   border: 1px solid var(--stroke);
   border-radius: 14px;
-  background: var(--card-bg);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(2px);
   padding: 12px;
 }
 
@@ -84,7 +97,7 @@
   gap: 8px;
   padding: 10px 12px calc(14px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--stroke);
-  background: var(--nav-bg);
+  background: rgba(248, 250, 255, 0.94);
   box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.08);
 }
 

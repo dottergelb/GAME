@@ -4,6 +4,8 @@ import asyncio
 import random
 import re
 import socket
+import sys
+import subprocess
 import requests
 from pathlib import Path
 from datetime import datetime, timedelta, UTC
@@ -81,6 +83,9 @@ BAN_HOURS = 1
 
 LEADERBOARD_URL = os.getenv("LEADERBOARD_URL", "https://your-site.example")
 EXAMPLE_SCREENSHOT_FILE_ID = os.getenv("EXAMPLE_SCREENSHOT_FILE_ID")  # can be None
+DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
+DB_SYNC_INTERVAL_SECONDS = int(os.getenv("DB_SYNC_INTERVAL_SECONDS", "120"))
+DB_SYNC_TIMEOUT_SECONDS = int(os.getenv("DB_SYNC_TIMEOUT_SECONDS", "90"))
 
 POINTS_BY_PLACE = [5, 4, 3, 2, 1, 0, -1, -2]  # top-8
 OPERATORS = {5538733181}  # TG operator IDs
@@ -212,6 +217,7 @@ search_queue: set[int] = set()                     # tg_user_id set
 match_lock = asyncio.Lock()                            # prevents double match creation
 match_results_sent: set[str] = set()               # team_id already finalized
 started_matches: set[str] = set()                    # team_id already started
+db_sync_lock = asyncio.Lock()
 
 
 # confirmation/queue status
@@ -816,6 +822,58 @@ async def captain_id_for_team(team_id: str) -> int | None:
         return None
     return team_name_to_uid.get(team_id, {}).get(cap_name)
 
+
+async def run_db_sync_once() -> None:
+    if not DATABASE_URL:
+        return
+
+    script_path = Path(__file__).parent / "tools" / "migrate_sqlite_to_postgres.py"
+    if not script_path.exists():
+        print(f"[db-sync] script not found: {script_path}", flush=True)
+        return
+
+    sqlite_path = os.getenv("SQLITE_PATH", "users.db")
+    try:
+        completed = await asyncio.to_thread(
+            subprocess.run,
+            [
+                sys.executable,
+                str(script_path),
+                "--sqlite",
+                sqlite_path,
+                "--database-url",
+                DATABASE_URL,
+            ],
+            cwd=str(Path(__file__).parent),
+            capture_output=True,
+            text=True,
+            timeout=DB_SYNC_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        print("[db-sync] timed out, will retry next cycle", flush=True)
+        return
+
+    if completed.returncode == 0:
+        print("[db-sync] sqlite -> postgres sync: ok", flush=True)
+    else:
+        stderr = (completed.stderr or "").strip()
+        stdout = (completed.stdout or "").strip()
+        msg = stderr or stdout or f"exit_code={completed.returncode}"
+        print(f"[db-sync] sqlite -> postgres sync: failed: {msg}", flush=True)
+
+
+async def periodic_db_sync():
+    if not DATABASE_URL:
+        return
+    await asyncio.sleep(5)
+    while True:
+        try:
+            async with db_sync_lock:
+                await run_db_sync_once()
+        except Exception as e:
+            print(f"[db-sync] unexpected error: {type(e).__name__}: {e!r}", flush=True)
+        await asyncio.sleep(max(30, DB_SYNC_INTERVAL_SECONDS))
+
 # =========================
 # STARTUP + TIMERS
 # =========================
@@ -861,6 +919,7 @@ async def on_startup():
     except Exception as e:
         print(f"[startup] set_my_commands skipped: {e}", flush=True)
     asyncio.create_task(check_timers())
+    asyncio.create_task(periodic_db_sync())
     print("Database initialized.", flush=True)
 
 async def check_timers():

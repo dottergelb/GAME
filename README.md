@@ -77,6 +77,12 @@ migrate_to_postgres.bat
 ```
 3. Restart backend + bot.
 
+### Continuous sync (bot mode)
+- Bot runs on SQLite as stable local source and periodically syncs data to Postgres.
+- Configure in `.env`:
+  - `DB_SYNC_INTERVAL_SECONDS=120`
+  - `DB_SYNC_TIMEOUT_SECONDS=90`
+
 ## Windows one-click scripts
 - `start_backend.bat` - validate env and run backend
 - `start_backend_prod.bat` - run backend with `ALLOW_DEV_AUTH=false`
