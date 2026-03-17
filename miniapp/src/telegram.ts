@@ -18,7 +18,20 @@ export function initTelegramWebApp(): void {
 
 export function getTelegramInitData(): string | null {
   const raw = getTelegramWebApp()?.initData?.trim();
-  return raw ? raw : null;
+  if (raw) return raw;
+
+  // Fallback for clients where WebApp object is delayed/unavailable:
+  // Telegram may provide init data in URL params.
+  const fromQuery = new URLSearchParams(window.location.search).get("tgWebAppData");
+  if (fromQuery?.trim()) return decodeURIComponent(fromQuery.trim());
+
+  const hash = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  const fromHash = new URLSearchParams(hash).get("tgWebAppData");
+  if (fromHash?.trim()) return decodeURIComponent(fromHash.trim());
+
+  return null;
 }
 
 export function getTelegramUser(): TelegramMiniAppUser | null {
