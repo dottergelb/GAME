@@ -11,3 +11,6 @@ __pycache__/
 !users.db
 miniapp/node_modules/
 miniapp/dist/
+tools/*.exe
+tools/*.zip
+tools/ngrok_new/

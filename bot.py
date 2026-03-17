@@ -36,7 +36,7 @@ if os.name == "nt":
     # Workaround for occasional TLS handshake stalls with aiohttp on Windows Proactor loop.
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-from openai_vision_table import extract_player_names  # вњ… NAMES ONLY
+from openai_vision_table import extract_player_names  # Names-only OCR parser
 
 from database import (
     init_db,
@@ -72,17 +72,17 @@ TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
     raise RuntimeError("BOT_TOKEN is not set. Add it to .env")
 
-PLAYERS_PER_MATCH = 3  # РїРѕСЃС‚Р°РІСЊ 8 РЅР° РїСЂРѕРґ
+PLAYERS_PER_MATCH = 3  # set to 8 in production
 CONFIRM_MINUTES = 15
 SECOND_CONFIRM_MINUTES = 5
 MIN_CONFIRMED_TO_START = 3
 BAN_HOURS = 1
 
 LEADERBOARD_URL = os.getenv("LEADERBOARD_URL", "https://your-site.example")
-EXAMPLE_SCREENSHOT_FILE_ID = os.getenv("EXAMPLE_SCREENSHOT_FILE_ID")  # РјРѕР¶РЅРѕ None
+EXAMPLE_SCREENSHOT_FILE_ID = os.getenv("EXAMPLE_SCREENSHOT_FILE_ID")  # can be None
 
-POINTS_BY_PLACE = [5, 4, 3, 2, 1, 0, -1, -2]  # С‚РѕРї-8
-OPERATORS = {5538733181}  # TG IDs РѕРїРµСЂР°С‚РѕСЂРѕРІ
+POINTS_BY_PLACE = [5, 4, 3, 2, 1, 0, -1, -2]  # top-8
+OPERATORS = {5538733181}  # TG operator IDs
 
 # =========================
 # BOT
