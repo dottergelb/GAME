@@ -1,6 +1,14 @@
 import { getTelegramInitData } from "./telegram";
 
-const API_BASE = (import.meta.env.VITE_API_BASE ?? "").trim() || "https://game-my6i.onrender.com";
+function normalizeApiBase(raw: string): string {
+  const value = raw.trim();
+  if (!value) return "https://game-my6i.onrender.com";
+  if (value.startsWith("https://")) return value.replace(/\/+$/, "");
+  if (value.startsWith("http://")) return `https://${value.slice("http://".length)}`.replace(/\/+$/, "");
+  return `https://${value}`.replace(/\/+$/, "");
+}
+
+const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE ?? "");
 const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID ?? "";
 const ALLOW_DEV_FALLBACK = (import.meta.env.VITE_ALLOW_DEV_FALLBACK ?? "true") === "true";
 
