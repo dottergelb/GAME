@@ -1,43 +1,43 @@
-.layout {
+﻿.layout {
   min-height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr;
-  position: relative;
-  isolation: isolate;
-}
-
-.layout::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    linear-gradient(180deg, rgba(10, 15, 30, 0.46) 0%, rgba(10, 15, 30, 0.26) 42%, rgba(10, 15, 30, 0.14) 100%),
-    url("/header.jpg") center top / cover no-repeat;
+  background: #f3f6fb;
 }
 
 .app-header {
-  padding: 16px 16px 8px;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  border-bottom: 1px solid var(--stroke);
+  background: #ffffff;
+  padding: 14px 16px 10px;
 }
 
 .app-title {
   font-size: 20px;
+  line-height: 1.2;
   font-weight: 800;
+  color: #0f172a;
 }
 
 .app-subtitle {
   margin-top: 2px;
   font-size: 13px;
-  opacity: 0.8;
+  color: #64748b;
 }
 
 .content {
-  padding: 8px 16px calc(84px + env(safe-area-inset-bottom, 0px));
+  width: min(940px, 100%);
+  margin: 0 auto;
+  padding: 14px 14px calc(94px + env(safe-area-inset-bottom, 0px));
 }
 
 .screen-title {
   margin: 0 0 12px;
   font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
 }
 
 .screen-state {
@@ -45,25 +45,32 @@
 }
 
 .screen-state.error {
-  color: #be123c;
+  color: #b91c1c;
 }
 
 .list {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .row-card,
 .stat-card {
   border: 1px solid var(--stroke);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(2px);
+  background: #ffffff;
   padding: 12px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
 }
 
 .stat-card + .stat-card {
   margin-top: 10px;
+}
+
+.card-title {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .nickname {
@@ -72,18 +79,13 @@
 
 .meta {
   font-size: 12px;
-  opacity: 0.75;
+  color: #64748b;
 }
 
 .points {
   font-size: 18px;
   font-weight: 800;
-}
-
-.card-title {
-  margin-bottom: 8px;
-  font-size: 14px;
-  font-weight: 700;
+  color: #0f172a;
 }
 
 .bottom-nav {
@@ -93,12 +95,12 @@
   bottom: 0;
   z-index: 40;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
-  padding: 10px 12px calc(14px + env(safe-area-inset-bottom, 0px));
+  padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--stroke);
-  background: rgba(248, 250, 255, 0.94);
-  box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
 }
 
 .tab {
@@ -107,12 +109,111 @@
   padding: 8px;
   text-align: center;
   text-decoration: none;
-  color: inherit;
+  color: #334155;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  background: #fff;
 }
 
 .tab.active {
   border-color: var(--active);
   background: var(--active-bg);
+  color: #115e59;
+}
+
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.segment-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.segment-btn {
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  background: #fff;
+  padding: 9px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.segment-btn.active {
+  border-color: var(--active);
+  background: var(--active-bg);
+  color: #115e59;
+}
+
+.menu-btn {
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.menu-btn:disabled {
+  opacity: 0.65;
+}
+
+.form-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.form-input {
+  width: 100%;
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.form-textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.form-error {
+  color: #b91c1c;
+}
+
+.form-success {
+  color: #166534;
+}
+
+.judge-card {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--stroke);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 80;
+}
+
+.modal-card {
+  width: min(560px, 100%);
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 14px;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16);
 }

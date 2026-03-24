@@ -2,19 +2,12 @@
 import base64
 import json
 import os
-from pathlib import Path
 from typing import List
 
-from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
-load_dotenv(dotenv_path=Path(__file__).with_name(".env"))
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY is not set. Add it to .env")
-
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 class TableParse(BaseModel):

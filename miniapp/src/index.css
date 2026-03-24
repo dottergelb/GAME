@@ -1,12 +1,12 @@
-:root {
-  --bg: #f5f8ff;
+﻿:root {
+  --bg: #f3f6fb;
   --text: #0f172a;
-  --stroke: #d4d9e6;
+  --stroke: #d9e1ec;
   --card-bg: #ffffff;
-  --nav-bg: #f8faff;
+  --nav-bg: #ffffff;
   --active: #0f766e;
   --active-bg: #e6fffa;
-  font-family: "Segoe UI", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+  font-family: "Segoe UI", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -19,13 +19,13 @@
   box-sizing: border-box;
 }
 
-body {
+html,
+body,
+#root {
   margin: 0;
   min-width: 320px;
-  background:
-    radial-gradient(1200px 500px at 0% -20%, #ddeefe 0%, transparent 60%),
-    radial-gradient(900px 450px at 120% -10%, #e8fef7 0%, transparent 58%),
-    var(--bg);
+  min-height: 100%;
+  background: var(--bg);
 }
 
 a {

@@ -37,3 +37,15 @@ export function getTelegramInitData(): string | null {
 export function getTelegramUser(): TelegramMiniAppUser | null {
   return getTelegramWebApp()?.initDataUnsafe?.user ?? null;
 }
+
+export function sendTelegramData(payload: unknown): boolean {
+  const webApp = getTelegramWebApp();
+  if (!webApp?.sendData) return false;
+  try {
+    const data = typeof payload === "string" ? payload : JSON.stringify(payload);
+    webApp.sendData(data);
+    return true;
+  } catch {
+    return false;
+  }
+}

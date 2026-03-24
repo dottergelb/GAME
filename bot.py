@@ -3,6 +3,7 @@ import os
 import asyncio
 import random
 import re
+import json
 import socket
 import sys
 import subprocess
@@ -65,6 +66,16 @@ from database import (
     list_open_name_change_requests,
     # offseason
     apply_offseason_result,
+)
+from tournaments import (
+    init_tournament_db,
+    register_tournament_handlers,
+    handle_tournament_photo,
+)
+from tournament_extras import (
+    init_tournament_extras_db,
+    register_tournament_extra_handlers,
+    start_tournament_sync_worker,
 )
 
 # =========================
@@ -269,23 +280,26 @@ def now_utc() -> datetime:
 # =========================
 TEXTS = {
     "ru": {
-        "requests": "Requests",
-        "verification": "Verification",
-        "my_name": "My name",
-        "change_name": "Change name",
-        "cancel_search": "Cancel search",
-        "find_match": "Find match",
-        "leaderboard": "Leaderboard",
-        "settings": "Settings",
+        "requests": "Заявки",
+        "verification": "Верификация",
+        "my_name": "Мой ник",
+        "change_name": "Сменить ник",
+        "cancel_search": "Отменить поиск",
+        "find_match": "Найти матч",
+        "leaderboard": "Рейтинг",
+        "settings": "Настройки",
+        "tournament_menu": "🏟 Меню турниров",
+        "judge_panel": "⚖️ Панель судьи",
+        "open_miniapp": "Открыть мини‑приложение",
         "lang_ru": "RU \u0420\u0443\u0441\u0441\u043a\u0438\u0439",
         "lang_en": "EN English",
         "choose_lang": "\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u044f\u0437\u044b\u043a:",
         "lang_saved_ru": "\u2705 \u042f\u0437\u044b\u043a \u043f\u0435\u0440\u0435\u043a\u043b\u044e\u0447\u0435\u043d: \u0420\u0443\u0441\u0441\u043a\u0438\u0439",
         "lang_saved_en": "\u2705 \u042f\u0437\u044b\u043a \u043f\u0435\u0440\u0435\u043a\u043b\u044e\u0447\u0435\u043d: English",
         "start_need_lang": "\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0432\u044b\u0431\u0435\u0440\u0438 \u044f\u0437\u044b\u043a.",
-        "start_need_verify": "\u0414\u043e\u0431\u0440\u043e \u043f\u043e\u0436\u0430\u043b\u043e\u0432\u0430\u0442\u044c! \u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u043f\u0440\u043e\u0439\u0434\u0438 \u0432\u0435\u0440\u0438\u0444\u0438\u043a\u0430\u0446\u0438\u044e.\n\u041d\u0430\u0436\u043c\u0438 Verification.",
+        "start_need_verify": "\u0414\u043e\u0431\u0440\u043e \u043f\u043e\u0436\u0430\u043b\u043e\u0432\u0430\u0442\u044c! \u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u043f\u0440\u043e\u0439\u0434\u0438 \u0432\u0435\u0440\u0438\u0444\u0438\u043a\u0430\u0446\u0438\u044e.\n\u041d\u0430\u0436\u043c\u0438 \u0412\u0435\u0440\u0438\u0444\u0438\u043a\u0430\u0446\u0438\u044f.",
         "start_welcome_back": "\u0421 \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0435\u043d\u0438\u0435\u043c, {name}!",
-        "start_not_verified": "\u041f\u0440\u0438\u0432\u0435\u0442, {name}!\n\u0422\u044b \u0435\u0449\u0435 \u043d\u0435 \u0432\u0435\u0440\u0438\u0444\u0438\u0446\u0438\u0440\u043e\u0432\u0430\u043d.\n\u041d\u0430\u0436\u043c\u0438 Verification.",
+        "start_not_verified": "\u041f\u0440\u0438\u0432\u0435\u0442, {name}!\n\u0422\u044b \u0435\u0449\u0435 \u043d\u0435 \u0432\u0435\u0440\u0438\u0444\u0438\u0446\u0438\u0440\u043e\u0432\u0430\u043d.\n\u041d\u0430\u0436\u043c\u0438 \u0412\u0435\u0440\u0438\u0444\u0438\u043a\u0430\u0446\u0438\u044f.",
         "settings_text": "\u041e\u0442\u043a\u0440\u043e\u0439 \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u044f\u0437\u044b\u043a\u0430:",
     },
     "en": {
@@ -297,6 +311,9 @@ TEXTS = {
         "find_match": "Find match",
         "leaderboard": "Leaderboard",
         "settings": "Settings",
+        "tournament_menu": "🏟 Tournament menu",
+        "judge_panel": "⚖️ Judge panel",
+        "open_miniapp": "Open Mini App",
         "lang_ru": "RU Русский",
         "lang_en": "EN English",
         "choose_lang": "Choose language:",
@@ -362,8 +379,7 @@ def add_operator_row_lang(kb: ReplyKeyboardMarkup, lang: str) -> ReplyKeyboardMa
 def kb_only_verification(lang: str, is_operator: bool = False) -> ReplyKeyboardMarkup:
     kb = ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=_text(lang, "verification"))],
-            [KeyboardButton(text=_text(lang, "settings"))],
+            [KeyboardButton(text=_text(lang, "open_miniapp"), web_app=WebAppInfo(url=LEADERBOARD_URL))],
         ],
         resize_keyboard=True,
         one_time_keyboard=False,
@@ -373,9 +389,7 @@ def kb_only_verification(lang: str, is_operator: bool = False) -> ReplyKeyboardM
 
 def kb_not_verified(lang: str, in_queue: bool = False, is_operator: bool = False) -> ReplyKeyboardMarkup:
     rows = [
-        [KeyboardButton(text=_text(lang, "verification"))],
-        [KeyboardButton(text=_text(lang, "my_name")), KeyboardButton(text=_text(lang, "change_name"))],
-        [KeyboardButton(text=_text(lang, "settings"))],
+        [KeyboardButton(text=_text(lang, "open_miniapp"), web_app=WebAppInfo(url=LEADERBOARD_URL))],
     ]
     if in_queue:
         rows.append([KeyboardButton(text=_text(lang, "cancel_search"))])
@@ -385,14 +399,10 @@ def kb_not_verified(lang: str, in_queue: bool = False, is_operator: bool = False
 
 def kb_verified(lang: str, in_queue: bool = False, is_operator: bool = False) -> ReplyKeyboardMarkup:
     rows = [
-        [KeyboardButton(text=_text(lang, "find_match")), KeyboardButton(text=_text(lang, "my_name"))],
-        [KeyboardButton(text=_text(lang, "change_name"))],
-        [KeyboardButton(text=_text(lang, "settings"))],
+        [KeyboardButton(text=_text(lang, "open_miniapp"), web_app=WebAppInfo(url=LEADERBOARD_URL))],
     ]
     if in_queue:
         rows.append([KeyboardButton(text=_text(lang, "cancel_search"))])
-
-    rows.append([KeyboardButton(text=_text(lang, "leaderboard"), web_app=WebAppInfo(url=LEADERBOARD_URL))])
     kb = ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, one_time_keyboard=False)
     return add_operator_row_lang(kb, lang) if is_operator else kb
 
@@ -410,6 +420,10 @@ async def get_keyboard_for_user(user_id: int) -> ReplyKeyboardMarkup:
         return kb_verified(lang, in_queue=(user_id in search_queue), is_operator=is_operator)
 
     return kb_not_verified(lang, in_queue=(user_id in search_queue), is_operator=is_operator)
+
+
+register_tournament_handlers(dp, bot, OPERATORS, get_keyboard_for_user)
+register_tournament_extra_handlers(dp, bot, OPERATORS, get_keyboard_for_user)
 
 
 # =========================
@@ -883,6 +897,8 @@ async def on_startup():
     # Do not block polling on DB warmup: network stalls to DB must not freeze bot commands.
     force_sqlite_fallback("startup non-blocking mode")
     asyncio.create_task(init_db())
+    asyncio.create_task(init_tournament_db())
+    asyncio.create_task(init_tournament_extras_db())
     try:
         parsed = urlparse(LEADERBOARD_URL)
         if parsed.scheme == "https" and parsed.hostname:
@@ -920,6 +936,7 @@ async def on_startup():
         print(f"[startup] set_my_commands skipped: {e}", flush=True)
     asyncio.create_task(check_timers())
     asyncio.create_task(periodic_db_sync())
+    start_tournament_sync_worker(bot)
     print("Database initialized.", flush=True)
 
 async def check_timers():
@@ -2018,24 +2035,30 @@ async def find_match(message: types.Message):
     user_id = message.from_user.id
     await enter_search(user_id)
 
-@dp.message(lambda m: button_is(m.text, "cancel_search"))
 
-async def cancel_search(message: types.Message):
-    user_id = message.from_user.id
+async def cancel_search_by_user_id(user_id: int):
     lang = await get_lang(user_id)
     if user_id in search_queue:
         search_queue.discard(user_id)
         await send_or_update_queue_status(user_id)
         await update_queue_status_for_all()
-        await message.answer(
+        await safe_send(
+            user_id,
             "✅ Search canceled." if lang == "en" else "✅ Поиск отменен.",
             reply_markup=await get_keyboard_for_user(user_id),
         )
     else:
-        await message.answer(
+        await safe_send(
+            user_id,
             "You are not in the queue." if lang == "en" else "Тебя нет в очереди.",
             reply_markup=await get_keyboard_for_user(user_id),
         )
+
+
+@dp.message(lambda m: button_is(m.text, "cancel_search"))
+async def cancel_search(message: types.Message):
+    user_id = message.from_user.id
+    await cancel_search_by_user_id(user_id)
 
 # =========================
 # CONFIRM PARTICIPATION
@@ -2446,6 +2469,39 @@ async def platform_selected_start_search(callback: types.CallbackQuery):
 
     await callback.answer(tr(lang, "Saved", "Сохранено"))
     await enter_search(uid)
+
+
+@dp.message(F.web_app_data)
+async def handle_webapp_action(message: types.Message):
+    user_id = message.from_user.id
+    lang = await get_lang(user_id)
+    raw = (message.web_app_data.data or "").strip()
+    if not raw:
+        await message.answer(tr(lang, "Mini App sent empty action.", "Mini App отправил пустое действие."))
+        return
+
+    action = ""
+    platform = ""
+    try:
+        payload = json.loads(raw)
+        action = str(payload.get("action") or "").strip()
+        platform = str(payload.get("platform") or "").strip().lower()
+    except Exception:
+        # Backward compatibility with plain text payloads.
+        action = raw.lower()
+
+    if action in {"queue_start", "start_queue", "queue:start"}:
+        if platform in {"pc", "android"}:
+            user_platform[user_id] = platform
+            waiting_platform.discard(user_id)
+        await enter_search(user_id)
+        return
+
+    if action in {"queue_cancel", "cancel_queue", "queue:cancel"}:
+        await cancel_search_by_user_id(user_id)
+        return
+
+    await message.answer(tr(lang, "Unknown Mini App action.", "Неизвестное действие Mini App."))
 
 
 @dp.callback_query()

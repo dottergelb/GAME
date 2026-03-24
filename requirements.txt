@@ -4,11 +4,3 @@ numpy
 pillow
 easyocr
 ultralytics
-python-dotenv
-openai
-fastapi
-uvicorn
-sqlalchemy
-aiosqlite
-asyncpg
-pydantic-settings
