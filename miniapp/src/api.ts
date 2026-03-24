@@ -1,6 +1,6 @@
 import { getTelegramInitData } from "./telegram";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "https://game-my6i.onrender.com";
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").trim() || "https://game-my6i.onrender.com";
 const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID ?? "";
 const ALLOW_DEV_FALLBACK = (import.meta.env.VITE_ALLOW_DEV_FALLBACK ?? "true") === "true";
 
