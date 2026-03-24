@@ -29,6 +29,7 @@ app = FastAPI(
 
 DB_PATH = os.getenv("SQLITE_PATH", "users.db")
 MAX_REPLACEMENTS_PER_MATCH = 2
+CORS_ORIGINS = [x.strip() for x in os.getenv("CORS_ORIGINS", "").split(",") if x.strip()]
 
 
 # =========================
@@ -36,7 +37,8 @@ MAX_REPLACEMENTS_PER_MATCH = 2
 # =========================
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origins=CORS_ORIGINS,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://([a-z0-9-]+\.)?netlify\.app$",
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
