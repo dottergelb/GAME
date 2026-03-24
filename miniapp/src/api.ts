@@ -36,7 +36,7 @@ function buildAuthHeaders(): HeadersInit {
   }
 
   throw new Error(
-    "Auth data is missing. Open this app from Telegram or set VITE_DEV_USER_ID for local dev.",
+    "Отсутствуют данные авторизации. Откройте приложение из Telegram или задайте VITE_DEV_USER_ID для локальной разработки.",
   );
 }
 

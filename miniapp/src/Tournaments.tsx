@@ -58,7 +58,7 @@ export default function Tournaments() {
     matchId: "",
     outUserId: "",
     inUserId: "",
-    reason: "player disconnected",
+    reason: "игрок отключился",
   });
   const [nickForm, setNickForm] = useState({ tournamentId: "", nickname: "" });
   const [deputyForm, setDeputyForm] = useState({ tournamentId: "", deputyUserId: "" });
@@ -76,7 +76,7 @@ export default function Tournaments() {
   });
 
   const [rejectTarget, setRejectTarget] = useState<RejectTarget | null>(null);
-  const [rejectReason, setRejectReason] = useState("rules mismatch");
+  const [rejectReason, setRejectReason] = useState("несоответствие правилам");
 
   const resetMessages = useCallback(() => {
     setError("");
@@ -104,7 +104,7 @@ export default function Tournaments() {
       setJudgeRep(j.replacement_requests);
       setJudgeNick(j.nickname_checks);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load tournaments");
+      setError(e instanceof Error ? e.message : "Не удалось загрузить турниры");
     } finally {
       setLoading(false);
     }
@@ -123,7 +123,7 @@ export default function Tournaments() {
     const inUserId = Number(replacementForm.inUserId);
     const reason = replacementForm.reason.trim();
     if (!matchId || !outUserId || !inUserId || reason.length < 3) {
-      setError("Fill replacement form correctly.");
+      setError("Заполните форму замены корректно.");
       return;
     }
     setSubmitting(true);
@@ -134,10 +134,10 @@ export default function Tournaments() {
         in_user_id: inUserId,
         reason,
       });
-      setSuccess("Replacement request created.");
+      setSuccess("Заявка на замену создана.");
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create replacement request");
+      setError(e instanceof Error ? e.message : "Не удалось создать заявку на замену");
     } finally {
       setSubmitting(false);
     }
@@ -148,7 +148,7 @@ export default function Tournaments() {
     const tournamentId = Number(nickForm.tournamentId);
     const nickname = nickForm.nickname.trim();
     if (!tournamentId || nickname.length < 3) {
-      setError("Fill nickname form correctly.");
+      setError("Заполните форму проверки ника корректно.");
       return;
     }
     setSubmitting(true);
@@ -157,11 +157,11 @@ export default function Tournaments() {
         tournament_id: tournamentId,
         nickname,
       });
-      setSuccess("Nickname check request created.");
+      setSuccess("Заявка на проверку ника создана.");
       setNickForm((prev) => ({ ...prev, nickname: "" }));
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create nickname check");
+      setError(e instanceof Error ? e.message : "Не удалось создать заявку на проверку ника");
     } finally {
       setSubmitting(false);
     }
@@ -172,7 +172,7 @@ export default function Tournaments() {
     const tournamentId = Number(deputyForm.tournamentId);
     const deputyUserId = Number(deputyForm.deputyUserId);
     if (!tournamentId || !deputyUserId) {
-      setError("Fill deputy form correctly.");
+      setError("Заполните форму заместителя корректно.");
       return;
     }
     setSubmitting(true);
@@ -181,10 +181,10 @@ export default function Tournaments() {
         tournament_id: tournamentId,
         deputy_user_id: deputyUserId,
       });
-      setSuccess("Deputy founder assigned.");
+      setSuccess("Заместитель основателя назначен.");
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to set deputy founder");
+      setError(e instanceof Error ? e.message : "Не удалось назначить заместителя");
     } finally {
       setSubmitting(false);
     }
@@ -193,7 +193,7 @@ export default function Tournaments() {
   const submitCreateTournament = useCallback(async () => {
     resetMessages();
     if (!createForm.title.trim()) {
-      setError("Tournament title is required.");
+      setError("Название турнира обязательно.");
       return;
     }
     const matchDays = createForm.matchDays
@@ -223,11 +223,11 @@ export default function Tournaments() {
         prize_pool_rub: Number(createForm.prizePoolRub || "0"),
         judges,
       });
-      setSuccess("Tournament created and sent to moderation (pending).");
+      setSuccess("Турнир создан и отправлен на модерацию (ожидает подтверждения).");
       setCreateForm((prev) => ({ ...prev, title: "" }));
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create tournament");
+      setError(e instanceof Error ? e.message : "Не удалось создать турнир");
     } finally {
       setSubmitting(false);
     }
@@ -239,10 +239,10 @@ export default function Tournaments() {
       setSubmitting(true);
       try {
         await apiPost(`/api/tournaments/judge/replacement/${requestId}/approve`, {});
-        setSuccess(`Replacement request #${requestId} approved.`);
+        setSuccess(`Заявка на замену #${requestId} одобрена.`);
         await refresh();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to approve replacement request");
+        setError(e instanceof Error ? e.message : "Не удалось одобрить заявку на замену");
       } finally {
         setSubmitting(false);
       }
@@ -256,10 +256,10 @@ export default function Tournaments() {
       setSubmitting(true);
       try {
         await apiPost(`/api/tournaments/judge/nickname/${requestId}/approve`, {});
-        setSuccess(`Nickname request #${requestId} approved.`);
+        setSuccess(`Заявка на ник #${requestId} одобрена.`);
         await refresh();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to approve nickname request");
+        setError(e instanceof Error ? e.message : "Не удалось одобрить заявку на ник");
       } finally {
         setSubmitting(false);
       }
@@ -271,7 +271,7 @@ export default function Tournaments() {
     if (!rejectTarget) return;
     const reason = rejectReason.trim();
     if (!reason) {
-      setError("Reject reason is required.");
+      setError("Причина отклонения обязательна.");
       return;
     }
     resetMessages();
@@ -282,11 +282,11 @@ export default function Tournaments() {
       } else {
         await apiPost(`/api/tournaments/judge/nickname/${rejectTarget.requestId}/reject`, { reason });
       }
-      setSuccess(`${rejectTarget.kind} request #${rejectTarget.requestId} rejected.`);
+      setSuccess(`Заявка #${rejectTarget.requestId} (${rejectTarget.kind === "replacement" ? "замена" : "ник"}) отклонена.`);
       setRejectTarget(null);
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to reject request");
+      setError(e instanceof Error ? e.message : "Не удалось отклонить заявку");
     } finally {
       setSubmitting(false);
     }
@@ -294,84 +294,84 @@ export default function Tournaments() {
 
   return (
     <section>
-      <h2 className="screen-title">Tournaments</h2>
+      <h2 className="screen-title">Турниры</h2>
 
       <article className="row-card">
-        <div className="card-title">Control</div>
+        <div className="card-title">Управление</div>
         <div className="segment-tabs">
           <button
             type="button"
             className={activeTab === "create" ? "segment-btn active" : "segment-btn"}
             onClick={() => setActiveTab("create")}
           >
-            Create
+            Создать
           </button>
           <button
             type="button"
             className={activeTab === "my" ? "segment-btn active" : "segment-btn"}
             onClick={() => setActiveTab("my")}
           >
-            My
+            Мои
           </button>
           <button
             type="button"
             className={activeTab === "judge" ? "segment-btn active" : "segment-btn"}
             onClick={() => setActiveTab("judge")}
           >
-            Judge
+            Судья
           </button>
           <button
             type="button"
             className={activeTab === "requests" ? "segment-btn active" : "segment-btn"}
             onClick={() => setActiveTab("requests")}
           >
-            Requests
+            Заявки
           </button>
         </div>
         <div className="menu-grid" style={{ marginTop: 8 }}>
           <button className="menu-btn" type="button" onClick={() => void refresh()} disabled={!canSubmit}>
-            Refresh
+            Обновить
           </button>
           <button
             className="menu-btn"
             type="button"
             onClick={() => {
               const ok = sendTelegramData({ action: "queue_start", platform: "pc" });
-              setSuccess(ok ? "Queue start (PC) sent to bot." : "Open inside Telegram to control queue.");
+              setSuccess(ok ? "Команда старта очереди (PC) отправлена боту." : "Откройте мини-приложение внутри Telegram для управления очередью.");
             }}
             disabled={!canSubmit}
           >
-            Start queue (PC)
+            Старт очереди (PC)
           </button>
           <button
             className="menu-btn"
             type="button"
             onClick={() => {
               const ok = sendTelegramData({ action: "queue_start", platform: "android" });
-              setSuccess(ok ? "Queue start (Android) sent to bot." : "Open inside Telegram to control queue.");
+              setSuccess(ok ? "Команда старта очереди (Android) отправлена боту." : "Откройте мини-приложение внутри Telegram для управления очередью.");
             }}
             disabled={!canSubmit}
           >
-            Start queue (Android)
+            Старт очереди (Android)
           </button>
           <button
             className="menu-btn"
             type="button"
             onClick={() => {
               const ok = sendTelegramData({ action: "queue_cancel" });
-              setSuccess(ok ? "Queue cancel sent to bot." : "Open inside Telegram to control queue.");
+              setSuccess(ok ? "Команда отмены очереди отправлена боту." : "Откройте мини-приложение внутри Telegram для управления очередью.");
             }}
             disabled={!canSubmit}
           >
-            Cancel queue
+            Отмена очереди
           </button>
         </div>
-        {loading ? <p className="meta">Loading...</p> : null}
+        {loading ? <p className="meta">Загрузка...</p> : null}
         {error ? <p className="meta form-error">{error}</p> : null}
         {success ? <p className="meta form-success">{success}</p> : null}
         {syncInfo ? (
           <p className="meta">
-            Sync queue: pending {syncInfo.pending_jobs}, done {syncInfo.done_jobs}
+            Очередь синхронизации: в ожидании {syncInfo.pending_jobs}, выполнено {syncInfo.done_jobs}
           </p>
         ) : null}
       </article>
@@ -380,12 +380,12 @@ export default function Tournaments() {
         {activeTab === "create" ? (
           <>
             <article className="row-card">
-              <div className="card-title">Create Tournament (Founder)</div>
+              <div className="card-title">Создать турнир (основатель)</div>
               <div className="form-grid">
                 <input
                   className="form-input"
                   type="text"
-                  placeholder="title"
+                  placeholder="название турнира"
                   value={createForm.title}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, title: e.target.value }))}
                 />
@@ -393,14 +393,14 @@ export default function Tournaments() {
                   <input
                     className="form-input"
                     type="text"
-                    placeholder="start_date DD.MM.YYYY"
+                    placeholder="дата начала (ДД.ММ.ГГГГ)"
                     value={createForm.startDate}
                     onChange={(e) => setCreateForm((prev) => ({ ...prev, startDate: e.target.value }))}
                   />
                   <input
                     className="form-input"
                     type="text"
-                    placeholder="end_date DD.MM.YYYY"
+                    placeholder="дата конца (ДД.ММ.ГГГГ)"
                     value={createForm.endDate}
                     onChange={(e) => setCreateForm((prev) => ({ ...prev, endDate: e.target.value }))}
                   />
@@ -411,13 +411,13 @@ export default function Tournaments() {
                     value={createForm.formatType}
                     onChange={(e) => setCreateForm((prev) => ({ ...prev, formatType: e.target.value }))}
                   >
-                    <option value="league">league</option>
-                    <option value="playoff">playoff</option>
+                    <option value="league">Лига</option>
+                    <option value="playoff">Плей-офф</option>
                   </select>
                   <input
                     className="form-input"
                     type="number"
-                    placeholder="max_players"
+                    placeholder="макс. игроков"
                     value={createForm.maxPlayers}
                     onChange={(e) => setCreateForm((prev) => ({ ...prev, maxPlayers: e.target.value }))}
                   />
@@ -425,14 +425,14 @@ export default function Tournaments() {
                 <input
                   className="form-input"
                   type="text"
-                  placeholder="match_days (0,2,4)"
+                  placeholder="дни матчей (например: 0,2,4)"
                   value={createForm.matchDays}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, matchDays: e.target.value }))}
                 />
                 <input
                   className="form-input"
                   type="text"
-                  placeholder="match_times (18:00,19:00)"
+                  placeholder="время матчей (например: 18:00,19:00)"
                   value={createForm.matchTimes}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, matchTimes: e.target.value }))}
                 />
@@ -440,14 +440,14 @@ export default function Tournaments() {
                   <input
                     className="form-input"
                     type="number"
-                    placeholder="games_per_day"
+                    placeholder="игр в день"
                     value={createForm.gamesPerDay}
                     onChange={(e) => setCreateForm((prev) => ({ ...prev, gamesPerDay: e.target.value }))}
                   />
                   <input
                     className="form-input"
                     type="number"
-                    placeholder="prize_pool_rub"
+                    placeholder="призовой фонд (руб)"
                     value={createForm.prizePoolRub}
                     onChange={(e) => setCreateForm((prev) => ({ ...prev, prizePoolRub: e.target.value }))}
                   />
@@ -455,35 +455,35 @@ export default function Tournaments() {
                 <input
                   className="form-input"
                   type="text"
-                  placeholder="judges user_ids comma-separated"
+                  placeholder="ID судей через запятую"
                   value={createForm.judges}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, judges: e.target.value }))}
                 />
                 <button className="menu-btn" type="button" onClick={() => void submitCreateTournament()} disabled={!canSubmit}>
-                  Create tournament
+                  Создать турнир
                 </button>
               </div>
             </article>
 
             <article className="row-card">
-              <div className="card-title">Set Deputy Founder</div>
+              <div className="card-title">Назначить заместителя основателя</div>
               <div className="form-grid">
                 <input
                   className="form-input"
                   type="number"
-                  placeholder="tournament_id"
+                  placeholder="ID турнира"
                   value={deputyForm.tournamentId}
                   onChange={(e) => setDeputyForm((prev) => ({ ...prev, tournamentId: e.target.value }))}
                 />
                 <input
                   className="form-input"
                   type="number"
-                  placeholder="deputy_user_id"
+                  placeholder="ID заместителя"
                   value={deputyForm.deputyUserId}
                   onChange={(e) => setDeputyForm((prev) => ({ ...prev, deputyUserId: e.target.value }))}
                 />
                 <button className="menu-btn" type="button" onClick={() => void submitDeputy()} disabled={!canSubmit}>
-                  Set deputy
+                  Назначить заместителя
                 </button>
               </div>
             </article>
@@ -492,11 +492,11 @@ export default function Tournaments() {
 
         {activeTab === "my" ? (
           <article className="row-card">
-            <div className="card-title">My Active Matches</div>
-            {matches.length === 0 ? <p className="meta">No active tournament matches</p> : null}
+            <div className="card-title">Мои активные матчи</div>
+            {matches.length === 0 ? <p className="meta">Нет активных турнирных матчей</p> : null}
             {matches.map((m) => (
               <div key={m.match_id} className="meta">
-                #{m.match_id} | tour #{m.tournament_id} | {m.round_name} | {(m.scheduled_at ?? "TBD").replace("T", " ")}
+                #{m.match_id} | турнир #{m.tournament_id} | {m.round_name} | {(m.scheduled_at ?? "время уточняется").replace("T", " ")}
               </div>
             ))}
           </article>
@@ -505,75 +505,75 @@ export default function Tournaments() {
         {activeTab === "requests" ? (
           <>
             <article className="row-card">
-              <div className="card-title">Create Replacement Request</div>
+              <div className="card-title">Создать заявку на замену</div>
               <div className="form-grid">
                 <input
                   className="form-input"
                   type="number"
-                  placeholder="match_id"
+                  placeholder="ID матча"
                   value={replacementForm.matchId}
                   onChange={(e) => setReplacementForm((prev) => ({ ...prev, matchId: e.target.value }))}
                 />
                 <input
                   className="form-input"
                   type="number"
-                  placeholder="out_user_id"
+                  placeholder="ID выбывающего игрока"
                   value={replacementForm.outUserId}
                   onChange={(e) => setReplacementForm((prev) => ({ ...prev, outUserId: e.target.value }))}
                 />
                 <input
                   className="form-input"
                   type="number"
-                  placeholder="in_user_id"
+                  placeholder="ID входящего игрока"
                   value={replacementForm.inUserId}
                   onChange={(e) => setReplacementForm((prev) => ({ ...prev, inUserId: e.target.value }))}
                 />
                 <textarea
                   className="form-input form-textarea"
-                  placeholder="reason"
+                  placeholder="причина"
                   value={replacementForm.reason}
                   onChange={(e) => setReplacementForm((prev) => ({ ...prev, reason: e.target.value }))}
                 />
                 <button className="menu-btn" type="button" onClick={() => void submitReplacement()} disabled={!canSubmit}>
-                  Submit replacement
+                  Отправить заявку на замену
                 </button>
               </div>
             </article>
 
             <article className="row-card">
-              <div className="card-title">Create Nickname Check</div>
+              <div className="card-title">Создать заявку на проверку ника</div>
               <div className="form-grid">
                 <input
                   className="form-input"
                   type="number"
-                  placeholder="tournament_id"
+                  placeholder="ID турнира"
                   value={nickForm.tournamentId}
                   onChange={(e) => setNickForm((prev) => ({ ...prev, tournamentId: e.target.value }))}
                 />
                 <input
                   className="form-input"
                   type="text"
-                  placeholder="new nickname"
+                  placeholder="новый ник"
                   value={nickForm.nickname}
                   onChange={(e) => setNickForm((prev) => ({ ...prev, nickname: e.target.value }))}
                 />
                 <button className="menu-btn" type="button" onClick={() => void submitNickCheck()} disabled={!canSubmit}>
-                  Submit nickname check
+                  Отправить заявку на ник
                 </button>
               </div>
             </article>
 
             <article className="row-card">
-              <div className="card-title">My Open Requests</div>
-              {openRep.length === 0 && openNick.length === 0 ? <p className="meta">No open requests</p> : null}
+              <div className="card-title">Мои открытые заявки</div>
+              {openRep.length === 0 && openNick.length === 0 ? <p className="meta">Нет открытых заявок</p> : null}
               {openRep.map((r) => (
                 <div key={`rep-${r.id}`} className="meta">
-                  [replacement] #{r.id} tour #{r.tournament_id} match #{r.match_id}: {r.out_user_id} -&gt; {r.in_user_id}
+                  [замена] #{r.id} турнир #{r.tournament_id} матч #{r.match_id}: {r.out_user_id} -&gt; {r.in_user_id}
                 </div>
               ))}
               {openNick.map((r) => (
                 <div key={`nick-${r.id}`} className="meta">
-                  [nickname] #{r.id} tour #{r.tournament_id}: {r.requested_nickname}
+                  [ник] #{r.id} турнир #{r.tournament_id}: {r.requested_nickname}
                 </div>
               ))}
             </article>
@@ -582,27 +582,27 @@ export default function Tournaments() {
 
         {activeTab === "judge" ? (
           <article className="row-card">
-            <div className="card-title">Judge Open Requests</div>
-            {judgeRep.length === 0 && judgeNick.length === 0 ? <p className="meta">No open judge requests</p> : null}
+            <div className="card-title">Открытые заявки судьи</div>
+            {judgeRep.length === 0 && judgeNick.length === 0 ? <p className="meta">Нет открытых заявок для судьи</p> : null}
             {judgeRep.map((r) => (
               <div key={`jrep-${r.id}`} className="meta judge-card">
                 <div>
-                  [replacement] #{r.id} tour #{r.tournament_id} match #{r.match_id}: {r.out_user_id} -&gt; {r.in_user_id}
+                  [замена] #{r.id} турнир #{r.tournament_id} матч #{r.match_id}: {r.out_user_id} -&gt; {r.in_user_id}
                 </div>
                 <div className="menu-grid" style={{ marginTop: 6 }}>
                   <button className="menu-btn" type="button" onClick={() => void judgeApproveReplacement(r.id)} disabled={!canSubmit}>
-                    Approve
+                    Одобрить
                   </button>
                   <button
                     className="menu-btn"
                     type="button"
                     onClick={() => {
                       setRejectTarget({ kind: "replacement", requestId: r.id });
-                      setRejectReason("rules mismatch");
+                      setRejectReason("несоответствие правилам");
                     }}
                     disabled={!canSubmit}
                   >
-                    Reject
+                    Отклонить
                   </button>
                 </div>
               </div>
@@ -610,22 +610,22 @@ export default function Tournaments() {
             {judgeNick.map((r) => (
               <div key={`jnick-${r.id}`} className="meta judge-card">
                 <div>
-                  [nickname] #{r.id} tour #{r.tournament_id}: user {r.user_id} -&gt; {r.requested_nickname}
+                  [ник] #{r.id} турнир #{r.tournament_id}: пользователь {r.user_id} -&gt; {r.requested_nickname}
                 </div>
                 <div className="menu-grid" style={{ marginTop: 6 }}>
                   <button className="menu-btn" type="button" onClick={() => void judgeApproveNick(r.id)} disabled={!canSubmit}>
-                    Approve
+                    Одобрить
                   </button>
                   <button
                     className="menu-btn"
                     type="button"
                     onClick={() => {
                       setRejectTarget({ kind: "nickname", requestId: r.id });
-                      setRejectReason("nickname policy");
+                      setRejectReason("нарушение правил ников");
                     }}
                     disabled={!canSubmit}
                   >
-                    Reject
+                    Отклонить
                   </button>
                 </div>
               </div>
@@ -637,20 +637,20 @@ export default function Tournaments() {
       {rejectTarget ? (
         <div className="modal-overlay" role="dialog" aria-modal="true">
           <div className="modal-card">
-            <h3 className="screen-title">Reject request #{rejectTarget.requestId}</h3>
-            <p className="meta">Type: {rejectTarget.kind}</p>
+            <h3 className="screen-title">Отклонить заявку #{rejectTarget.requestId}</h3>
+            <p className="meta">Тип: {rejectTarget.kind === "replacement" ? "замена" : "ник"}</p>
             <textarea
               className="form-input form-textarea"
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="Reject reason"
+              placeholder="Причина отклонения"
             />
             <div className="menu-grid">
               <button className="menu-btn" type="button" onClick={() => setRejectTarget(null)} disabled={!canSubmit}>
-                Cancel
+                Отмена
               </button>
               <button className="menu-btn" type="button" onClick={() => void submitReject()} disabled={!canSubmit}>
-                Confirm reject
+                Подтвердить отклонение
               </button>
             </div>
           </div>

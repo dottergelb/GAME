@@ -27,35 +27,35 @@ export default function Profile() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="screen-state">Loading...</div>;
-  if (err) return <div className="screen-state error">Error: {err}</div>;
-  if (!me) return <div className="screen-state">No data</div>;
+  if (loading) return <div className="screen-state">Загрузка...</div>;
+  if (err) return <div className="screen-state error">Ошибка: {err}</div>;
+  if (!me) return <div className="screen-state">Нет данных</div>;
 
   return (
     <section>
-      <h2 className="screen-title">Profile</h2>
+      <h2 className="screen-title">Профиль</h2>
 
       <div className="stat-card">
         <div className="nickname">{me.nickname}</div>
-        <div className="meta">uid: {me.uid}</div>
+        <div className="meta">ID: {me.uid}</div>
         <div className="meta">
-          Verified: <b>{me.verified ? "Yes" : "No"}</b>
+          Верификация: <b>{me.verified ? "Да" : "Нет"}</b>
         </div>
-        {me.game_uid ? <div className="meta">Game UID: {me.game_uid}</div> : null}
+        {me.game_uid ? <div className="meta">Игровой UID: {me.game_uid}</div> : null}
       </div>
 
       <div className="stat-card">
-        <div className="card-title">Season</div>
-        <div>Points: {me.season_points}</div>
-        <div>Matches: {me.matches_played}</div>
-        <div>Wins: {me.wins}</div>
-        <div>Winrate: {Math.round(me.winrate * 100)}%</div>
+        <div className="card-title">Сезон</div>
+        <div>Очки: {me.season_points}</div>
+        <div>Матчи: {me.matches_played}</div>
+        <div>Победы: {me.wins}</div>
+        <div>Винрейт: {Math.round(me.winrate * 100)}%</div>
       </div>
 
       <div className="stat-card">
         <div className="card-title">SLRPT</div>
         <div>SLRPT: {me.slrpt}</div>
-        <div>Win multiplier: {me.win_mult.toFixed(2)}</div>
+        <div>Множитель побед: {me.win_mult.toFixed(2)}</div>
       </div>
     </section>
   );

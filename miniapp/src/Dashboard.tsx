@@ -6,55 +6,55 @@ export default function Dashboard() {
 
   return (
     <section>
-      <h2 className="screen-title">Control Center</h2>
+      <h2 className="screen-title">Центр управления</h2>
       <div className="list">
         <article className="row-card">
-          <div className="card-title">Matchmaking</div>
+          <div className="card-title">Подбор матчей</div>
           <div className="menu-grid">
             <button
               className="menu-btn"
               type="button"
               onClick={() => {
                 const ok = sendTelegramData({ action: "queue_start", platform: "pc" });
-                if (!ok) alert("Open mini app from Telegram to send queue actions.");
+                if (!ok) alert("Открой мини-приложение из Telegram, чтобы отправлять команды очереди.");
               }}
             >
-              Start Queue PC
+              Начать очередь (PC)
             </button>
             <button
               className="menu-btn"
               type="button"
               onClick={() => {
                 const ok = sendTelegramData({ action: "queue_start", platform: "android" });
-                if (!ok) alert("Open mini app from Telegram to send queue actions.");
+                if (!ok) alert("Открой мини-приложение из Telegram, чтобы отправлять команды очереди.");
               }}
             >
-              Start Queue Android
+              Начать очередь (Android)
             </button>
             <button className="menu-btn" type="button" onClick={() => sendTelegramData({ action: "queue_cancel" })}>
-              Cancel Queue
+              Отменить очередь
             </button>
           </div>
         </article>
 
         <article className="row-card">
-          <div className="card-title">Tournaments</div>
-          <p className="meta">Creation, requests, judge approvals, deputy founder and moderation.</p>
+          <div className="card-title">Турниры</div>
+          <p className="meta">Создание, заявки, решения судьи, заместитель основателя и модерация.</p>
           <div className="menu-grid">
             <button className="menu-btn" type="button" onClick={() => navigate("/tournaments")}>
-              Open Tournament Hub
+              Открыть центр турниров
             </button>
           </div>
         </article>
 
         <article className="row-card">
-          <div className="card-title">Ratings</div>
+          <div className="card-title">Рейтинги</div>
           <div className="menu-grid">
             <button className="menu-btn" type="button" onClick={() => navigate("/season")}>
-              Season Rating
+              Рейтинг сезона
             </button>
             <button className="menu-btn" type="button" onClick={() => navigate("/slrpt")}>
-              SLRPT Rating
+              Рейтинг SLRPT
             </button>
           </div>
         </article>
@@ -62,4 +62,3 @@ export default function Dashboard() {
     </section>
   );
 }
-

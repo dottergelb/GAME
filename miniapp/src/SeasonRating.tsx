@@ -17,12 +17,12 @@ export default function SeasonRating() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="screen-state">Loading...</div>;
-  if (err) return <div className="screen-state error">Error: {err}</div>;
+  if (loading) return <div className="screen-state">Загрузка...</div>;
+  if (err) return <div className="screen-state error">Ошибка: {err}</div>;
 
   return (
     <section>
-      <h2 className="screen-title">Season Rating</h2>
+      <h2 className="screen-title">Рейтинг сезона</h2>
       <div className="list">
         {rows.map((r) => (
           <div key={r.uid} className="row-card">
@@ -30,7 +30,7 @@ export default function SeasonRating() {
               <div className="nickname">
                 #{r.rank} {r.nickname}
               </div>
-              <div className="meta">uid: {r.uid}</div>
+              <div className="meta">ID: {r.uid}</div>
             </div>
             <div className="points">{r.points}</div>
           </div>

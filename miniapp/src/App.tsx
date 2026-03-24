@@ -13,12 +13,12 @@ export default function App() {
     ? `@${tgUser.username}`
     : tgUser?.first_name
       ? tgUser.first_name
-      : "Mini App";
+      : "Мини-приложение";
 
   return (
     <div className="layout">
       <header className="app-header">
-        <div className="app-title">Leha League</div>
+        <div className="app-title">Лига Лёхи</div>
         <div className="app-subtitle">{title}</div>
       </header>
 
@@ -34,19 +34,19 @@ export default function App() {
 
       <nav className="bottom-nav">
         <NavLink to="/" end className={({ isActive }) => (isActive ? "tab active" : "tab")}>
-          Home
+          Главная
         </NavLink>
         <NavLink to="/season" className={({ isActive }) => (isActive ? "tab active" : "tab")}>
-          Season
+          Сезон
         </NavLink>
         <NavLink to="/slrpt" className={({ isActive }) => (isActive ? "tab active" : "tab")}>
           SLRPT
         </NavLink>
         <NavLink to="/tournaments" className={({ isActive }) => (isActive ? "tab active" : "tab")}>
-          Tournaments
+          Турниры
         </NavLink>
         <NavLink to="/me" className={({ isActive }) => (isActive ? "tab active" : "tab")}>
-          Profile
+          Профиль
         </NavLink>
       </nav>
     </div>
