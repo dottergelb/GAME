@@ -2,6 +2,7 @@ import os
 import json
 from datetime import datetime
 from typing import Any
+from urllib.parse import parse_qs, unquote_plus
 
 import aiosqlite
 from fastapi import FastAPI, Depends, Header, HTTPException
@@ -56,7 +57,10 @@ async def root():
 # =========================
 # DEV AUTH HEADER
 # =========================
-async def get_user_id(x_user_id: int = Header(...)):
+async def get_user_id(
+    x_user_id: int | None = Header(default=None),
+    x_telegram_init_data: str | None = Header(default=None),
+):
     """
     В dev-режиме MiniApp шлёт заголовок:
 
@@ -64,9 +68,22 @@ async def get_user_id(x_user_id: int = Header(...)):
 
     Потом заменим на Telegram initData.
     """
-    if not x_user_id:
-        raise HTTPException(status_code=401, detail="Missing X-User-Id header")
-    return x_user_id
+    if x_user_id:
+        return x_user_id
+
+    if x_telegram_init_data:
+        try:
+            parsed = parse_qs(x_telegram_init_data, keep_blank_values=True)
+            user_raw = (parsed.get("user") or [None])[0]
+            if user_raw:
+                user_obj = json.loads(unquote_plus(user_raw))
+                uid = int(user_obj.get("id"))
+                if uid > 0:
+                    return uid
+        except Exception:
+            pass
+
+    raise HTTPException(status_code=401, detail="Missing auth headers")
 
 
 class ReplacementCreateBody(BaseModel):
