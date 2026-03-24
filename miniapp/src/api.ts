@@ -1,11 +1,34 @@
 import { getTelegramInitData } from "./telegram";
 
 function normalizeApiBase(raw: string): string {
+  const fallback = "https://game-my6i.onrender.com";
   const value = raw.trim();
-  if (!value) return "https://game-my6i.onrender.com";
-  if (value.startsWith("https://")) return value.replace(/\/+$/, "");
-  if (value.startsWith("http://")) return `https://${value.slice("http://".length)}`.replace(/\/+$/, "");
-  return `https://${value}`.replace(/\/+$/, "");
+  if (!value) return fallback;
+
+  const prefixed = value.startsWith("https://")
+    ? value
+    : value.startsWith("http://")
+      ? `https://${value.slice("http://".length)}`
+      : `https://${value}`;
+
+  try {
+    const parsed = new URL(prefixed);
+    const host = parsed.hostname.toLowerCase();
+    const isLocalHost =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "0.0.0.0" ||
+      host.endsWith(".local") ||
+      host.startsWith("10.") ||
+      host.startsWith("192.168.") ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
+    const runningLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+
+    if (isLocalHost && !runningLocal) return fallback;
+    return `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, "");
+  } catch {
+    return fallback;
+  }
 }
 
 const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE ?? "");
