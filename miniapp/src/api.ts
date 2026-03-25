@@ -33,7 +33,7 @@ function normalizeApiBase(raw: string): string {
 
 const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE ?? "");
 const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID ?? "";
-const ALLOW_DEV_FALLBACK = (import.meta.env.VITE_ALLOW_DEV_FALLBACK ?? "true") === "true";
+const ALLOW_DEV_FALLBACK = (import.meta.env.VITE_ALLOW_DEV_FALLBACK ?? "false") === "true";
 
 function resolveDevUserId(): string {
   if (DEV_USER_ID) return DEV_USER_ID;

@@ -379,6 +379,7 @@ def add_operator_row_lang(kb: ReplyKeyboardMarkup, lang: str) -> ReplyKeyboardMa
 def kb_only_verification(lang: str, is_operator: bool = False) -> ReplyKeyboardMarkup:
     kb = ReplyKeyboardMarkup(
         keyboard=[
+            [KeyboardButton(text=_text(lang, "verification"))],
             [KeyboardButton(text=_text(lang, "open_miniapp"), web_app=WebAppInfo(url=LEADERBOARD_URL))],
         ],
         resize_keyboard=True,
@@ -389,6 +390,7 @@ def kb_only_verification(lang: str, is_operator: bool = False) -> ReplyKeyboardM
 
 def kb_not_verified(lang: str, in_queue: bool = False, is_operator: bool = False) -> ReplyKeyboardMarkup:
     rows = [
+        [KeyboardButton(text=_text(lang, "verification"))],
         [KeyboardButton(text=_text(lang, "open_miniapp"), web_app=WebAppInfo(url=LEADERBOARD_URL))],
     ]
     if in_queue:

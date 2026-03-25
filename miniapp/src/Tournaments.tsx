@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "./api";
-import { sendTelegramData } from "./telegram";
+import { getTelegramUser, sendTelegramData } from "./telegram";
 
 type TabKey = "create" | "my" | "judge" | "requests";
 type Capabilities = {
@@ -46,6 +46,10 @@ type RejectTarget = {
 };
 
 export default function Tournaments() {
+  const founderId = 5538733181;
+  const tgUser = getTelegramUser();
+  const isFounderByTelegram = tgUser?.id === founderId;
+
   const [activeTab, setActiveTab] = useState<TabKey>("create");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -100,10 +104,10 @@ export default function Tournaments() {
     resetMessages();
     try {
       const capsPromise = apiGet<Capabilities>("/api/tournaments/capabilities").catch(() => ({
-        can_create_tournament: true,
-        can_set_deputy: true,
-        can_judge_panel: true,
-        can_manage_requests: true,
+        can_create_tournament: isFounderByTelegram,
+        can_set_deputy: isFounderByTelegram,
+        can_judge_panel: false,
+        can_manage_requests: false,
       }));
 
       const [caps, m, r, s] = await Promise.all([
@@ -123,7 +127,11 @@ export default function Tournaments() {
           "/api/tournaments/judge/open-requests",
         );
       }
-      setCapabilities(caps);
+      setCapabilities({
+        ...caps,
+        can_create_tournament: caps.can_create_tournament || isFounderByTelegram,
+        can_set_deputy: caps.can_set_deputy || isFounderByTelegram,
+      });
       setMatches(m.rows);
       setOpenRep(r.replacement_requests);
       setOpenNick(r.nickname_checks);
@@ -135,7 +143,7 @@ export default function Tournaments() {
     } finally {
       setLoading(false);
     }
-  }, [resetMessages]);
+  }, [isFounderByTelegram, resetMessages]);
 
   useEffect(() => {
     void refresh();

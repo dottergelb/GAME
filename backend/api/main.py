@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from typing import Any
 from urllib.parse import parse_qs, unquote_plus
+import re
 
 import aiosqlite
 from fastapi import FastAPI, Depends, Header, HTTPException
@@ -62,6 +63,38 @@ async def root():
 # =========================
 # DEV AUTH HEADER
 # =========================
+def _uid_from_init_data(raw: str) -> int | None:
+    candidates: list[str] = []
+    try:
+        parsed = parse_qs(raw, keep_blank_values=True)
+        user_raw = (parsed.get("user") or [None])[0]
+        if isinstance(user_raw, str) and user_raw:
+            candidates.append(user_raw)
+    except Exception:
+        pass
+
+    # Fallback if parse_qs failed or got malformed payload.
+    m = re.search(r"(?:^|&)user=([^&]+)", raw)
+    if m:
+        candidates.append(m.group(1))
+
+    for candidate in candidates:
+        variants = [candidate]
+        try:
+            variants.append(unquote_plus(candidate))
+        except Exception:
+            pass
+        for text in variants:
+            try:
+                obj = json.loads(text)
+                uid = int(obj.get("id"))
+                if uid > 0:
+                    return uid
+            except Exception:
+                continue
+    return None
+
+
 async def get_user_id(
     x_user_id: int | None = Header(default=None),
     x_telegram_init_data: str | None = Header(default=None),
@@ -77,16 +110,9 @@ async def get_user_id(
         return x_user_id
 
     if x_telegram_init_data:
-        try:
-            parsed = parse_qs(x_telegram_init_data, keep_blank_values=True)
-            user_raw = (parsed.get("user") or [None])[0]
-            if user_raw:
-                user_obj = json.loads(unquote_plus(user_raw))
-                uid = int(user_obj.get("id"))
-                if uid > 0:
-                    return uid
-        except Exception:
-            pass
+        uid = _uid_from_init_data(x_telegram_init_data)
+        if uid:
+            return uid
 
     raise HTTPException(status_code=401, detail="Missing auth headers")
 
