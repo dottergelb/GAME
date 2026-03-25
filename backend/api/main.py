@@ -33,7 +33,7 @@ MAX_REPLACEMENTS_PER_MATCH = 2
 CORS_ORIGINS = [x.strip() for x in os.getenv("CORS_ORIGINS", "").split(",") if x.strip()]
 TOURNAMENT_FOUNDER_IDS = {
     int(x.strip())
-    for x in os.getenv("TOURNAMENT_FOUNDER_IDS", "5912520356").split(",")
+    for x in os.getenv("TOURNAMENT_FOUNDER_IDS", "5538733181").split(",")
     if x.strip().isdigit()
 }
 
