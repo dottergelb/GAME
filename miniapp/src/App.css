@@ -82,6 +82,21 @@
   color: #64748b;
 }
 
+.section-lead {
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+
+.menu-help {
+  margin: 2px 0 8px;
+  color: #334155;
+}
+
+.empty-note {
+  margin: 0;
+  color: #475569;
+}
+
 .points {
   font-size: 18px;
   font-weight: 800;

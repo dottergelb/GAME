@@ -31,6 +31,11 @@ app = FastAPI(
 DB_PATH = os.getenv("SQLITE_PATH", "users.db")
 MAX_REPLACEMENTS_PER_MATCH = 2
 CORS_ORIGINS = [x.strip() for x in os.getenv("CORS_ORIGINS", "").split(",") if x.strip()]
+TOURNAMENT_FOUNDER_IDS = {
+    int(x.strip())
+    for x in os.getenv("TOURNAMENT_FOUNDER_IDS", "5912520356").split(",")
+    if x.strip().isdigit()
+}
 
 
 # =========================
@@ -146,6 +151,10 @@ def _json_load(value: str | None, default: Any):
         return default
 
 
+def _is_tournament_founder(uid: int) -> bool:
+    return uid in TOURNAMENT_FOUNDER_IDS
+
+
 async def _judge_access_for_tournament(uid: int, tournament_id: int) -> bool:
     row = await _fetchone(
         "SELECT creator_id, judges_json, deputy_founder_id, deputy_scope_json FROM tournaments WHERE id=?",
@@ -160,6 +169,43 @@ async def _judge_access_for_tournament(uid: int, tournament_id: int) -> bool:
         return True
     scopes = set(_json_load(deputy_scope_json, []))
     return uid == deputy_founder_id and ("all" in scopes or "manage_judges" in scopes or "approve_replacements" in scopes)
+
+
+@app.get("/api/tournaments/capabilities")
+async def tournaments_capabilities(uid: int = Depends(get_user_id)):
+    tournaments = await _fetchall(
+        "SELECT id, creator_id, judges_json, deputy_founder_id, deputy_scope_json FROM tournaments"
+    )
+    participant_rows = await _fetchall(
+        "SELECT DISTINCT tournament_id FROM tournament_players WHERE user_id=?",
+        (uid,),
+    )
+    participant_ids = {int(r[0]) for r in participant_rows}
+
+    can_set_deputy = False
+    can_judge_panel = False
+    can_manage_requests = False
+
+    for row in tournaments:
+        tid, creator_id, judges_json, deputy_id, deputy_scope_json = row
+        judges = set(_json_load(judges_json, []))
+        scopes = set(_json_load(deputy_scope_json, []))
+
+        is_creator = uid == int(creator_id)
+        is_deputy = uid == deputy_id
+        is_participant = int(tid) in participant_ids
+        is_judge = is_creator or (uid in judges) or (is_deputy and ("all" in scopes or "manage_judges" in scopes or "approve_replacements" in scopes))
+
+        can_set_deputy = can_set_deputy or is_creator
+        can_judge_panel = can_judge_panel or is_judge
+        can_manage_requests = can_manage_requests or is_participant or is_creator or is_deputy
+
+    return {
+        "can_create_tournament": _is_tournament_founder(uid),
+        "can_set_deputy": can_set_deputy,
+        "can_judge_panel": can_judge_panel,
+        "can_manage_requests": can_manage_requests,
+    }
 
 
 # =========================
@@ -544,6 +590,8 @@ async def tournaments_sync_status(uid: int = Depends(get_user_id)):
 
 @app.post("/api/tournaments/create")
 async def tournaments_create(body: TournamentCreateBody, uid: int = Depends(get_user_id)):
+    if not _is_tournament_founder(uid):
+        raise HTTPException(status_code=403, detail="Only founder can create tournament")
     if body.format_type not in {"league", "playoff"}:
         raise HTTPException(status_code=400, detail="format_type must be league or playoff")
     for d in body.match_days:

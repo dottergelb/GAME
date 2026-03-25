@@ -3,6 +3,12 @@ import { apiGet, apiPost } from "./api";
 import { sendTelegramData } from "./telegram";
 
 type TabKey = "create" | "my" | "judge" | "requests";
+type Capabilities = {
+  can_create_tournament: boolean;
+  can_set_deputy: boolean;
+  can_judge_panel: boolean;
+  can_manage_requests: boolean;
+};
 
 type MatchRow = {
   match_id: number;
@@ -50,6 +56,12 @@ export default function Tournaments() {
   const [judgeRep, setJudgeRep] = useState<JudgeReplacementRequest[]>([]);
   const [judgeNick, setJudgeNick] = useState<JudgeNickCheckRequest[]>([]);
   const [syncInfo, setSyncInfo] = useState<{ pending_jobs: number; done_jobs: number } | null>(null);
+  const [capabilities, setCapabilities] = useState<Capabilities>({
+    can_create_tournament: false,
+    can_set_deputy: false,
+    can_judge_panel: false,
+    can_manage_requests: true,
+  });
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -87,16 +99,31 @@ export default function Tournaments() {
     setLoading(true);
     resetMessages();
     try {
-      const [m, r, s, j] = await Promise.all([
+      const capsPromise = apiGet<Capabilities>("/api/tournaments/capabilities").catch(() => ({
+        can_create_tournament: true,
+        can_set_deputy: true,
+        can_judge_panel: true,
+        can_manage_requests: true,
+      }));
+
+      const [caps, m, r, s] = await Promise.all([
+        capsPromise,
         apiGet<{ rows: MatchRow[] }>("/api/tournaments/my-matches"),
         apiGet<{ replacement_requests: ReplacementRequest[]; nickname_checks: NickCheckRequest[] }>(
           "/api/tournaments/my-open-requests",
         ),
         apiGet<{ pending_jobs: number; done_jobs: number }>("/api/tournaments/sync-status"),
-        apiGet<{ replacement_requests: JudgeReplacementRequest[]; nickname_checks: JudgeNickCheckRequest[] }>(
-          "/api/tournaments/judge/open-requests",
-        ),
       ]);
+      let j: { replacement_requests: JudgeReplacementRequest[]; nickname_checks: JudgeNickCheckRequest[] } = {
+        replacement_requests: [],
+        nickname_checks: [],
+      };
+      if (caps.can_judge_panel) {
+        j = await apiGet<{ replacement_requests: JudgeReplacementRequest[]; nickname_checks: JudgeNickCheckRequest[] }>(
+          "/api/tournaments/judge/open-requests",
+        );
+      }
+      setCapabilities(caps);
       setMatches(m.rows);
       setOpenRep(r.replacement_requests);
       setOpenNick(r.nickname_checks);
@@ -115,6 +142,30 @@ export default function Tournaments() {
   }, [refresh]);
 
   const canSubmit = useMemo(() => !loading && !submitting, [loading, submitting]);
+  const tabs = useMemo(() => {
+    const out: Array<{ key: TabKey; label: string; desc: string }> = [];
+    if (capabilities.can_create_tournament || capabilities.can_set_deputy) {
+      out.push({ key: "create", label: "Управление", desc: "Создание турнира и назначение заместителя." });
+    }
+    if (matches.length > 0) {
+      out.push({ key: "my", label: "Мои матчи", desc: "Ваши активные матчи и расписание." });
+    }
+    if (capabilities.can_manage_requests || openRep.length > 0 || openNick.length > 0) {
+      out.push({ key: "requests", label: "Мои заявки", desc: "Замены и проверка никнейма." });
+    }
+    if (capabilities.can_judge_panel) {
+      out.push({ key: "judge", label: "Судейство", desc: "Рассмотрение заявок игроков." });
+    }
+    return out;
+  }, [capabilities, matches.length, openNick.length, openRep.length]);
+
+  useEffect(() => {
+    if (!tabs.length) return;
+    const exists = tabs.some((t) => t.key === activeTab);
+    if (!exists) setActiveTab(tabs[0].key);
+  }, [activeTab, tabs]);
+
+  const activeTabMeta = tabs.find((t) => t.key === activeTab);
 
   const submitReplacement = useCallback(async () => {
     resetMessages();
@@ -298,36 +349,22 @@ export default function Tournaments() {
 
       <article className="row-card">
         <div className="card-title">Управление</div>
+        <p className="meta section-lead">
+          Показываются только разделы, доступные для вашей роли.
+        </p>
         <div className="segment-tabs">
-          <button
-            type="button"
-            className={activeTab === "create" ? "segment-btn active" : "segment-btn"}
-            onClick={() => setActiveTab("create")}
-          >
-            Создать
-          </button>
-          <button
-            type="button"
-            className={activeTab === "my" ? "segment-btn active" : "segment-btn"}
-            onClick={() => setActiveTab("my")}
-          >
-            Мои
-          </button>
-          <button
-            type="button"
-            className={activeTab === "judge" ? "segment-btn active" : "segment-btn"}
-            onClick={() => setActiveTab("judge")}
-          >
-            Судья
-          </button>
-          <button
-            type="button"
-            className={activeTab === "requests" ? "segment-btn active" : "segment-btn"}
-            onClick={() => setActiveTab("requests")}
-          >
-            Заявки
-          </button>
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={activeTab === tab.key ? "segment-btn active" : "segment-btn"}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
+        {activeTabMeta ? <p className="meta menu-help">{activeTabMeta.desc}</p> : null}
         <div className="menu-grid" style={{ marginTop: 8 }}>
           <button className="menu-btn" type="button" onClick={() => void refresh()} disabled={!canSubmit}>
             Обновить
@@ -379,114 +416,125 @@ export default function Tournaments() {
       <div className="list" style={{ marginTop: 10 }}>
         {activeTab === "create" ? (
           <>
-            <article className="row-card">
-              <div className="card-title">Создать турнир (основатель)</div>
-              <div className="form-grid">
-                <input
-                  className="form-input"
-                  type="text"
-                  placeholder="название турнира"
-                  value={createForm.title}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, title: e.target.value }))}
-                />
-                <div className="menu-grid">
+            {capabilities.can_create_tournament ? (
+              <article className="row-card">
+                <div className="card-title">Создать турнир (основатель)</div>
+                <p className="meta section-lead">Доступно только основателю проекта.</p>
+                <div className="form-grid">
                   <input
                     className="form-input"
                     type="text"
-                    placeholder="дата начала (ДД.ММ.ГГГГ)"
-                    value={createForm.startDate}
-                    onChange={(e) => setCreateForm((prev) => ({ ...prev, startDate: e.target.value }))}
+                    placeholder="название турнира"
+                    value={createForm.title}
+                    onChange={(e) => setCreateForm((prev) => ({ ...prev, title: e.target.value }))}
+                  />
+                  <div className="menu-grid">
+                    <input
+                      className="form-input"
+                      type="text"
+                      placeholder="дата начала (ДД.ММ.ГГГГ)"
+                      value={createForm.startDate}
+                      onChange={(e) => setCreateForm((prev) => ({ ...prev, startDate: e.target.value }))}
+                    />
+                    <input
+                      className="form-input"
+                      type="text"
+                      placeholder="дата конца (ДД.ММ.ГГГГ)"
+                      value={createForm.endDate}
+                      onChange={(e) => setCreateForm((prev) => ({ ...prev, endDate: e.target.value }))}
+                    />
+                  </div>
+                  <div className="menu-grid">
+                    <select
+                      className="form-input"
+                      value={createForm.formatType}
+                      onChange={(e) => setCreateForm((prev) => ({ ...prev, formatType: e.target.value }))}
+                    >
+                      <option value="league">Лига</option>
+                      <option value="playoff">Плей-офф</option>
+                    </select>
+                    <input
+                      className="form-input"
+                      type="number"
+                      placeholder="макс. игроков"
+                      value={createForm.maxPlayers}
+                      onChange={(e) => setCreateForm((prev) => ({ ...prev, maxPlayers: e.target.value }))}
+                    />
+                  </div>
+                  <input
+                    className="form-input"
+                    type="text"
+                    placeholder="дни матчей (например: 0,2,4)"
+                    value={createForm.matchDays}
+                    onChange={(e) => setCreateForm((prev) => ({ ...prev, matchDays: e.target.value }))}
                   />
                   <input
                     className="form-input"
                     type="text"
-                    placeholder="дата конца (ДД.ММ.ГГГГ)"
-                    value={createForm.endDate}
-                    onChange={(e) => setCreateForm((prev) => ({ ...prev, endDate: e.target.value }))}
+                    placeholder="время матчей (например: 18:00,19:00)"
+                    value={createForm.matchTimes}
+                    onChange={(e) => setCreateForm((prev) => ({ ...prev, matchTimes: e.target.value }))}
                   />
-                </div>
-                <div className="menu-grid">
-                  <select
-                    className="form-input"
-                    value={createForm.formatType}
-                    onChange={(e) => setCreateForm((prev) => ({ ...prev, formatType: e.target.value }))}
-                  >
-                    <option value="league">Лига</option>
-                    <option value="playoff">Плей-офф</option>
-                  </select>
+                  <div className="menu-grid">
+                    <input
+                      className="form-input"
+                      type="number"
+                      placeholder="игр в день"
+                      value={createForm.gamesPerDay}
+                      onChange={(e) => setCreateForm((prev) => ({ ...prev, gamesPerDay: e.target.value }))}
+                    />
+                    <input
+                      className="form-input"
+                      type="number"
+                      placeholder="призовой фонд (руб)"
+                      value={createForm.prizePoolRub}
+                      onChange={(e) => setCreateForm((prev) => ({ ...prev, prizePoolRub: e.target.value }))}
+                    />
+                  </div>
                   <input
                     className="form-input"
-                    type="number"
-                    placeholder="макс. игроков"
-                    value={createForm.maxPlayers}
-                    onChange={(e) => setCreateForm((prev) => ({ ...prev, maxPlayers: e.target.value }))}
+                    type="text"
+                    placeholder="ID судей через запятую"
+                    value={createForm.judges}
+                    onChange={(e) => setCreateForm((prev) => ({ ...prev, judges: e.target.value }))}
                   />
+                  <button className="menu-btn" type="button" onClick={() => void submitCreateTournament()} disabled={!canSubmit}>
+                    Создать турнир
+                  </button>
                 </div>
-                <input
-                  className="form-input"
-                  type="text"
-                  placeholder="дни матчей (например: 0,2,4)"
-                  value={createForm.matchDays}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, matchDays: e.target.value }))}
-                />
-                <input
-                  className="form-input"
-                  type="text"
-                  placeholder="время матчей (например: 18:00,19:00)"
-                  value={createForm.matchTimes}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, matchTimes: e.target.value }))}
-                />
-                <div className="menu-grid">
-                  <input
-                    className="form-input"
-                    type="number"
-                    placeholder="игр в день"
-                    value={createForm.gamesPerDay}
-                    onChange={(e) => setCreateForm((prev) => ({ ...prev, gamesPerDay: e.target.value }))}
-                  />
-                  <input
-                    className="form-input"
-                    type="number"
-                    placeholder="призовой фонд (руб)"
-                    value={createForm.prizePoolRub}
-                    onChange={(e) => setCreateForm((prev) => ({ ...prev, prizePoolRub: e.target.value }))}
-                  />
-                </div>
-                <input
-                  className="form-input"
-                  type="text"
-                  placeholder="ID судей через запятую"
-                  value={createForm.judges}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, judges: e.target.value }))}
-                />
-                <button className="menu-btn" type="button" onClick={() => void submitCreateTournament()} disabled={!canSubmit}>
-                  Создать турнир
-                </button>
-              </div>
-            </article>
+              </article>
+            ) : (
+              <article className="row-card">
+                <div className="card-title">Создание турнира</div>
+                <p className="meta empty-note">Недоступно. Турниры может создавать только основатель.</p>
+              </article>
+            )}
 
-            <article className="row-card">
-              <div className="card-title">Назначить заместителя основателя</div>
-              <div className="form-grid">
-                <input
-                  className="form-input"
-                  type="number"
-                  placeholder="ID турнира"
-                  value={deputyForm.tournamentId}
-                  onChange={(e) => setDeputyForm((prev) => ({ ...prev, tournamentId: e.target.value }))}
-                />
-                <input
-                  className="form-input"
-                  type="number"
-                  placeholder="ID заместителя"
-                  value={deputyForm.deputyUserId}
-                  onChange={(e) => setDeputyForm((prev) => ({ ...prev, deputyUserId: e.target.value }))}
-                />
-                <button className="menu-btn" type="button" onClick={() => void submitDeputy()} disabled={!canSubmit}>
-                  Назначить заместителя
-                </button>
-              </div>
-            </article>
+            {capabilities.can_set_deputy ? (
+              <article className="row-card">
+                <div className="card-title">Назначить заместителя основателя</div>
+                <p className="meta section-lead">Выберите турнир, где вы являетесь создателем.</p>
+                <div className="form-grid">
+                  <input
+                    className="form-input"
+                    type="number"
+                    placeholder="ID турнира"
+                    value={deputyForm.tournamentId}
+                    onChange={(e) => setDeputyForm((prev) => ({ ...prev, tournamentId: e.target.value }))}
+                  />
+                  <input
+                    className="form-input"
+                    type="number"
+                    placeholder="ID заместителя"
+                    value={deputyForm.deputyUserId}
+                    onChange={(e) => setDeputyForm((prev) => ({ ...prev, deputyUserId: e.target.value }))}
+                  />
+                  <button className="menu-btn" type="button" onClick={() => void submitDeputy()} disabled={!canSubmit}>
+                    Назначить заместителя
+                  </button>
+                </div>
+              </article>
+            ) : null}
           </>
         ) : null}
 
@@ -506,6 +554,7 @@ export default function Tournaments() {
           <>
             <article className="row-card">
               <div className="card-title">Создать заявку на замену</div>
+              <p className="meta section-lead">Только для игроков указанного матча.</p>
               <div className="form-grid">
                 <input
                   className="form-input"
@@ -542,6 +591,7 @@ export default function Tournaments() {
 
             <article className="row-card">
               <div className="card-title">Создать заявку на проверку ника</div>
+              <p className="meta section-lead">Ник проверяется судьёй перед применением.</p>
               <div className="form-grid">
                 <input
                   className="form-input"
